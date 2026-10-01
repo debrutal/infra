@@ -47,6 +47,8 @@ services:
       REDIS_URL: "redis://redis:6379/0"
       SECRET_KEY: "{{ sentry_secret_key }}"
       GLITCHTIP_DOMAIN: "{{ sentry_site_url }}"
+      ENABLE_USER_REGISTRATION: "{{ sentry_enable_user_registration | default(true) | string }}"
+      ENABLE_SOCIAL_APPS_USER_REGISTRATION: "{{ sentry_enable_social_apps_user_registration | default(true) | string }}"
 {% if sentry_otel_enabled | default(true) %}
       OTEL_SERVICE_NAME: "glitchtip"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
@@ -68,7 +70,7 @@ services:
       - "traefik.http.routers.sentry.tls.certresolver={{ sentry_traefik_certresolver }}"
 {% endif %}
 {% endif %}
-{% if sentry_authentik_enabled | default(false) %}
+{% if sentry_authentik_forward_auth_enabled | default(false) %}
       - "traefik.http.routers.sentry.middlewares=authentik@file"
 {% endif %}
       - "traefik.http.services.sentry.loadbalancer.server.port=8000"

@@ -14,5 +14,14 @@ sentry_admin_user: "{{ vault_sentry_admin_user | default(default_admin_username 
 sentry_admin_email: "{{ vault_sentry_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
 sentry_admin_password: "{{ vault_sentry_admin_password | default(default_admin_password | default('')) }}"
 
+# Authentik SSO / OIDC configuration
+sentry_authentik_enabled: true
+sentry_authentik_forward_auth_enabled: false
+sentry_authentik_domain: "{{ authentik_domain | default('authentik.mini.debrutal.dev') }}"
+sentry_authentik_client_id: "{{ authentik_glitchtip_client_id | default('glitchtip') }}"
+sentry_authentik_client_secret: "{{ authentik_glitchtip_client_secret | default('glitchtip-secret-key-32-chars-minimum!') }}"
+sentry_enable_user_registration: true
+sentry_enable_social_apps_user_registration: true
+
 # OpenTelemetry
 sentry_otel_enabled: true

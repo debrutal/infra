@@ -50,6 +50,8 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         with open(sentry_defaults_path, "r") as f:
             content = f.read()
         self.assertIn("vault_sentry_admin_user | default(default_admin_username", content)
+        self.assertIn("sentry_authentik_enabled: true", content)
+        self.assertIn("sentry_authentik_client_id", content)
 
     def test_invoiceninja_defaults(self):
         """Verify Invoice Ninja default admin configuration."""
@@ -80,6 +82,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("vault_authentik_admin_username | default(default_admin_username", content)
         self.assertIn("vault_authentik_admin_email | default(default_admin_email", content)
         self.assertIn("authentik_grafana_client_id", content)
+        self.assertIn("authentik_glitchtip_client_id", content)
 
     def test_lgtm_defaults(self):
         """Verify LGTM default admin configuration."""

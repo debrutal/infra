@@ -125,6 +125,8 @@ sentry_traefik_certresolver: ""
 sentry_traefik_entrypoints: "websecure"
 sentry_domain: "sentry.mini.debrutal.dev"
 sentry_site_url: "https://{{ sentry_domain }}"
+sentry_authentik_enabled: true
+sentry_authentik_forward_auth_enabled: false
 
 # Homepage configuration
 homepage_dir: "/opt/homepage"
@@ -179,6 +181,8 @@ authentik_grafana_client_id: "grafana"
 authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
 authentik_bookorbit_client_id: "bookorbit"
 authentik_bookorbit_client_secret: "{{ vault_bookorbit_authentik_secret | default('bookorbit-secret-key-32-chars-minimum!') }}"
+authentik_glitchtip_client_id: "glitchtip"
+authentik_glitchtip_client_secret: "{{ vault_glitchtip_authentik_secret | default('glitchtip-secret-key-32-chars-minimum!') }}"
 
 # LGTM Stack (Loki, Grafana, Tempo, Prometheus) configuration
 lgtm_dir: "/opt/lgtm"

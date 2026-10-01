@@ -124,10 +124,35 @@
             'authorization_flow': explicit_flow,
         }
     );
-    bookorbit_provider.redirect_uris = [RedirectURI(matching_mode='strict', url='https://{{ bookorbit_domain | default("bookorbit.mini.debrutal.dev") }}/oauth2-callback')];
+    bookorbit_provider.redirect_uris = [
+        RedirectURI(matching_mode='strict', url='https://{{ bookorbit_domain | default("bookorbit.mini.debrutal.dev") }}/oauth2-callback')
+    ];
     bookorbit_provider.property_mappings.set(scopes);
     bookorbit_provider.save();
     Application.objects.get_or_create(slug='bookorbit', defaults={'name': 'BookOrbit', 'provider': bookorbit_provider});
+
+    glitchtip_provider, _ = OAuth2Provider.objects.get_or_create(
+        name='GlitchTip OIDC Provider',
+        defaults={
+            'client_id': '{{ authentik_glitchtip_client_id }}',
+            'client_secret': '{{ authentik_glitchtip_client_secret }}',
+            'client_type': ClientTypes.CONFIDENTIAL,
+            'authorization_flow': explicit_flow,
+        }
+    );
+    glitchtip_provider.client_id = '{{ authentik_glitchtip_client_id }}';
+    glitchtip_provider.client_secret = '{{ authentik_glitchtip_client_secret }}';
+    glitchtip_provider.redirect_uris = [
+        RedirectURI(matching_mode='regex', url='https://{{ sentry_domain | default("sentry.mini.debrutal.dev") }}/.*')
+    ];
+    glitchtip_provider.property_mappings.set(scopes);
+    glitchtip_provider.save();
+    glitchtip_app, _ = Application.objects.get_or_create(
+        slug='glitchtip',
+        defaults={'name': 'GlitchTip', 'provider': glitchtip_provider}
+    );
+    glitchtip_app.provider = glitchtip_provider;
+    glitchtip_app.save();
     "
 
   register: authentik_providers_res

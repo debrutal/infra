@@ -76,3 +76,39 @@
   failed_when: false
   changed_when: false
   when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Configure Authentik OIDC provider in Sentry (GlitchTip)
+  ansible.builtin.command: >-
+    docker exec sentry-web ./manage.py shell -c "
+    from allauth.socialaccount.models import SocialApp
+    app, _ = SocialApp.objects.get_or_create(
+        provider='openid_connect',
+        provider_id='authentik',
+        defaults={
+            'name': 'Authentik',
+            'client_id': '{{ sentry_authentik_client_id }}',
+            'secret': '{{ sentry_authentik_client_secret }}',
+            'settings': {
+                'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration'
+            }
+        }
+    )
+    app.name = 'Authentik'
+    app.client_id = '{{ sentry_authentik_client_id }}'
+    app.secret = '{{ sentry_authentik_client_secret }}'
+    app.settings = {
+        'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration'
+    }
+    app.save()
+    if hasattr(app, 'sites'):
+        from django.contrib.sites.models import Site
+        for s in Site.objects.all():
+            app.sites.add(s)
+    "
+  register: sentry_authentik_res
+  failed_when: false
+  changed_when: false
+  when:
+    - sentry_authentik_enabled | default(true)
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  tags: [sentry, glitchtip, authentik, sso]

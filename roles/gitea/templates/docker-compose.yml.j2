@@ -28,7 +28,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     ports:
-      - "{{ gitea_ssh_port }}:2222"
+      - "{{ gitea_ssh_port }}:22"
     networks:
       - default
       - traefik_net

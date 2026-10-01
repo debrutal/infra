@@ -21,6 +21,8 @@ authentik_grafana_client_id: "grafana"
 authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
 authentik_bookorbit_client_id: "bookorbit"
 authentik_bookorbit_client_secret: "{{ vault_bookorbit_authentik_secret | default('bookorbit-secret-key-32-chars-minimum!') }}"
+authentik_glitchtip_client_id: "glitchtip"
+authentik_glitchtip_client_secret: "{{ vault_glitchtip_authentik_secret | default('glitchtip-secret-key-32-chars-minimum!') }}"
 
 # OpenTelemetry / Metrics
 authentik_otel_enabled: true

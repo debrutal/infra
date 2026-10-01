@@ -142,6 +142,7 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("gitea.mini.debrutal.dev", res_compose.stdout)
         self.assertIn("gitea/gitea", res_compose.stdout)
         self.assertIn("GITEA__actions__ENABLED=true", res_compose.stdout)
+        self.assertIn("2222:22", res_compose.stdout)
 
         # Verify runner services and directories
         runner_count = int(os.environ.get("GITEA_RUNNER_COUNT", "4"))
@@ -237,6 +238,19 @@ class TestContainerDeployment(unittest.TestCase):
             text=True,
         )
         self.assertEqual(res_write.returncode, 0, f"app user cannot write to /books: {res_write.stderr}")
+
+    def test_15_sentry_installation(self):
+        """Verify Sentry (GlitchTip) containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/sentry"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/sentry directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/sentry/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/sentry/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("sentry.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("glitchtip/glitchtip", res_compose.stdout)
+        self.assertIn("ENABLE_USER_REGISTRATION:", res_compose.stdout)
+        self.assertIn("ENABLE_SOCIAL_APPS_USER_REGISTRATION:", res_compose.stdout)
 
 
 if __name__ == "__main__":
