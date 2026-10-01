@@ -1,0 +1,69 @@
+---
+- name: Verify Cloudflare API token is present and decrypted
+  ansible.builtin.assert:
+    that:
+      - vault_cf_dns_api_token is defined
+      - vault_cf_dns_api_token != ''
+      - "'ANSIBLE_VAULT' not in (vault_cf_dns_api_token | string)"
+    fail_msg: "Cloudflare DNS API Token in inventory/group_vars/vault.yml could not be decrypted! Please pass '--ask-vault-pass' (or '-J') to ansible-playbook."
+  when: traefik_acme_enabled and traefik_acme_challenge_type == 'dns' and ansible_connection != 'docker'
+
+- name: Ensure Traefik Docker network exists
+  community.docker.docker_network:
+    name: "{{ traefik_network_name }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create Traefik configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ traefik_dir }}"
+    - "{{ traefik_dir }}/dynamic"
+    - "{{ traefik_dir }}/acme"
+
+- name: Create ACME storage file with secure permissions
+  ansible.builtin.file:
+    path: "{{ traefik_dir }}/acme/acme.json"
+    state: touch
+    mode: '0600'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Deploy Traefik static configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ traefik_dir }}/traefik.yml"
+    mode: '0644'
+  notify: Restart Traefik
+
+- name: Deploy Traefik dynamic configuration
+  ansible.builtin.template:
+    src: dynamic_conf.yml.j2
+    dest: "{{ traefik_dir }}/dynamic/dynamic_conf.yml"
+    mode: '0644'
+  notify: Restart Traefik
+
+- name: Deploy Traefik docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ traefik_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Traefik
+
+- name: Reset ACME certificate storage if requested
+  ansible.builtin.copy:
+    content: "{}\n"
+    dest: "{{ traefik_dir }}/acme/acme.json"
+    mode: '0600'
+  when: (traefik_reset_acme | default(false))
+  notify: Restart Traefik
+
+- name: Start Traefik container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ traefik_dir }}"
+    state: present
+    recreate: "{{ (traefik_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

@@ -1,0 +1,44 @@
+---
+traefik_version: "v3.7.13"
+traefik_dir: "/opt/traefik"
+traefik_network_name: "traefik-net"
+traefik_http_port: 80
+traefik_https_port: 443
+traefik_dashboard_port: 8080
+traefik_enable_dashboard: true
+traefik_dashboard_insecure: true
+traefik_log_level: "INFO"
+traefik_acme_email: "admin@debrutal.dev"
+traefik_acme_enabled: true
+traefik_acme_domain_main: "mini.debrutal.dev"
+traefik_acme_domain_sans:
+  - "*.mini.debrutal.dev"
+traefik_alias_headers_strategy: "delete"
+traefik_encoded_characters_allow_slash: false
+traefik_encoded_characters_allow_backslash: false
+traefik_encoded_characters_allow_hash: false
+traefik_encoded_characters_allow_null: false
+traefik_encoded_characters_allow_percent: false
+traefik_encoded_characters_allow_questionmark: false
+traefik_encoded_characters_allow_semicolon: false
+traefik_acme_challenge_type: "dns"
+traefik_acme_dns_provider: "cloudflare"
+traefik_acme_dns_delay: 10
+traefik_acme_dns_resolvers:
+  - "1.1.1.1:53"
+  - "1.0.0.1:53"
+traefik_acme_dns_env:
+  CF_DNS_API_TOKEN: "your-cloudflare-api-token-here"
+  CLOUDFLARE_DNS_API_TOKEN: "your-cloudflare-api-token-here"
+  CF_ZONE_API_TOKEN: "your-cloudflare-api-token-here"
+  CLOUDFLARE_ZONE_API_TOKEN: "your-cloudflare-api-token-here"
+
+traefik_fusion_enabled: true
+traefik_fusion_domain: "fusion.mini.debrutal.dev"
+traefik_fusion_target_port: 4040
+
+traefik_force_restart: false
+traefik_reset_acme: false
+
+# OpenTelemetry
+traefik_otel_enabled: true

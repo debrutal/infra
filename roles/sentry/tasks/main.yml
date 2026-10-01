@@ -1,0 +1,78 @@
+---
+- name: Create Sentry configuration directory
+  ansible.builtin.file:
+    path: "{{ sentry_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Check if Sentry secret_key file exists
+  ansible.builtin.stat:
+    path: "{{ sentry_dir }}/secret_key"
+  register: sentry_key_file
+
+- name: Generate Sentry secret_key file if not set
+  ansible.builtin.shell: |
+    set -o pipefail
+    openssl rand -hex 32 > "{{ sentry_dir }}/secret_key"
+  args:
+    executable: /bin/bash
+    creates: "{{ sentry_dir }}/secret_key"
+  when:
+    - sentry_secret_key | default('', true) == ''
+    - not sentry_key_file.stat.exists
+
+- name: Read generated Sentry secret_key file
+  ansible.builtin.slurp:
+    src: "{{ sentry_dir }}/secret_key"
+  register: sentry_slurped_secret_key
+  when: sentry_secret_key | default('', true) == ''
+
+- name: Set final Sentry secret_key variable
+  ansible.builtin.set_fact:
+    sentry_secret_key_effective: >-
+      {{ sentry_secret_key if (sentry_secret_key | default('', true) != '')
+      else (sentry_slurped_secret_key.content | b64decode | trim) }}
+
+- name: Deploy Sentry docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ sentry_dir }}/docker-compose.yml"
+    mode: '0644'
+  vars:
+    sentry_secret_key: "{{ sentry_secret_key_effective }}"
+
+- name: Start Sentry container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ sentry_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Sentry (GlitchTip) web service to be available
+  ansible.builtin.command: >
+    docker exec sentry-web ./manage.py check
+  register: sentry_wait_res
+  until: sentry_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update Sentry (GlitchTip) admin user
+  ansible.builtin.command: >-
+    docker exec sentry-web ./manage.py shell -c "
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    defaults = {'email': '{{ sentry_admin_email }}', 'is_superuser': True, 'is_staff': True, 'is_active': True}
+    u, created = User.objects.get_or_create(username='{{ sentry_admin_user }}', defaults=defaults)
+    u.email = '{{ sentry_admin_email }}'
+    u.is_superuser = True
+    u.is_staff = True
+    u.is_active = True
+    u.set_password('{{ sentry_admin_password }}')
+    u.save()
+    "
+  register: sentry_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

@@ -1,0 +1,92 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: invoiceninja-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "{{ invoiceninja_db_root_password }}"
+      MYSQL_DATABASE: "{{ invoiceninja_db_name }}"
+      MYSQL_USER: "{{ invoiceninja_db_user }}"
+      MYSQL_PASSWORD: "{{ invoiceninja_db_password }}"
+    volumes:
+      - invoiceninja_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: invoiceninja/invoiceninja:{{ invoiceninja_version }}
+    container_name: invoiceninja-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_URL: "{{ invoiceninja_app_url }}"
+      APP_KEY: "{{ invoiceninja_app_key }}"
+      APP_DEBUG: "false"
+      REQUIRE_HTTPS: "true"
+      TRUSTED_PROXIES: "*"
+      QUEUE_CONNECTION: "database"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_DATABASE: "{{ invoiceninja_db_name }}"
+      DB_USERNAME: "{{ invoiceninja_db_user }}"
+      DB_PASSWORD: "{{ invoiceninja_db_password }}"
+      IN_USER_EMAIL: "{{ invoiceninja_admin_email }}"
+      IN_PASSWORD: "{{ invoiceninja_admin_password }}"
+      FIRST_NAME: "{{ invoiceninja_admin_user }}"
+      LAST_NAME: "User"
+      PDF_GENERATOR: "snappdf"
+    volumes:
+      - invoiceninja_public_data:/var/www/app/public
+      - invoiceninja_storage_data:/var/www/app/storage
+
+  server:
+    image: nginx:alpine
+    container_name: invoiceninja-server
+    restart: always
+    depends_on:
+      - app
+    volumes:
+      - {{ invoiceninja_dir }}/in-vhost.conf:/etc/nginx/conf.d/in-vhost.conf:ro
+      - invoiceninja_public_data:/var/www/app/public:ro
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.invoiceninja.rule=Host(`{{ invoiceninja_domain }}`)"
+      - "traefik.http.routers.invoiceninja.entrypoints={{ invoiceninja_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.invoiceninja.tls=true"
+{% if invoiceninja_traefik_certresolver is defined and invoiceninja_traefik_certresolver %}
+      - "traefik.http.routers.invoiceninja.tls.certresolver={{ invoiceninja_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if invoiceninja_authentik_enabled | default(false) %}
+      - "traefik.http.routers.invoiceninja.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.invoiceninja.loadbalancer.server.port=80"
+      - "kuma.invoiceninja.http.name=Invoice Ninja"
+      - "kuma.invoiceninja.http.url=http://invoiceninja-server:80"
+      - "homepage.group=Billing & Invoicing"
+      - "homepage.name=Invoice Ninja"
+      - "homepage.icon=invoiceninja"
+      - "homepage.href={{ invoiceninja_app_url }}"
+      - "homepage.description=Invoicing & Expense Management"
+
+
+
+volumes:
+  invoiceninja_db_data:
+  invoiceninja_public_data:
+  invoiceninja_storage_data:
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ invoiceninja_traefik_network }}

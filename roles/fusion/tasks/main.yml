@@ -1,0 +1,37 @@
+---
+- name: Check if Fusion binary / executable exists
+  ansible.builtin.stat:
+    path: "{{ fusion_bin_path }}"
+  register: fusion_bin_stat
+
+- name: Display status of Fusion binary location
+  ansible.builtin.debug:
+    msg: "Fusion binary checked at {{ fusion_bin_path }} (exists: {{ fusion_bin_stat.stat.exists }})."
+
+- name: Ensure Fusion working directory exists
+  ansible.builtin.file:
+    path: "{{ fusion_working_dir }}"
+    state: directory
+    owner: "{{ fusion_user }}"
+    group: "{{ fusion_group }}"
+    mode: '0755'
+  when: fusion_working_dir is defined and fusion_working_dir != '/' and fusion_working_dir != ''
+
+- name: Deploy Fusion systemd service unit file
+  ansible.builtin.template:
+    src: fusion.service.j2
+    dest: "/etc/systemd/system/{{ fusion_service_name }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd daemon
+    - Restart Fusion service
+
+- name: Ensure Fusion systemd service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ fusion_service_name }}"
+    enabled: "{{ fusion_service_enabled }}"
+    state: "{{ fusion_service_state }}"
+    daemon_reload: true
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

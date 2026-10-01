@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""
+Integration test suite for Ansible infrastructure deployment on a local Docker container.
+Ensures deployment works end-to-end on an isolated container without touching the remote server.
+"""
+
+import os
+import subprocess
+import unittest
+
+CONTAINER_NAME = "infra-test-container"
+# Check if pre-built molecule image is available for instant setup
+res_img = subprocess.run(["docker", "image", "inspect", "molecule_local/ubuntu:latest"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+IMAGE_NAME = "molecule_local/ubuntu:latest" if res_img.returncode == 0 else "ubuntu:latest"
+
+WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INVENTORY_FILE = os.path.join(WORKSPACE_DIR, "tests", "inventory.ini")
+
+class TestContainerDeployment(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        """Spin up a fresh test container and prepare Python environment for Ansible."""
+        print(f"\n[+] Cleaning up any pre-existing container named {CONTAINER_NAME}...")
+        subprocess.run(["docker", "rm", "-f", CONTAINER_NAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        print(f"[+] Spawning local test container ({CONTAINER_NAME} using {IMAGE_NAME})...")
+        cmd_run = [
+            "docker", "run", "-d",
+            "--name", CONTAINER_NAME,
+            IMAGE_NAME,
+            "sleep", "600"
+        ]
+        res = subprocess.run(cmd_run, capture_output=True, text=True)
+        assert res.returncode == 0, f"Failed to start docker container: {res.stderr}"
+
+        # If using standard base image without python3 pre-installed
+        if IMAGE_NAME == "ubuntu:latest":
+            print("[+] Installing python3 in test container for Ansible compatibility...")
+            cmd_prep = [
+                "docker", "exec", CONTAINER_NAME,
+                "sh", "-c", "apt-get update && apt-get install -y python3 python3-apt ca-certificates"
+            ]
+            res_prep = subprocess.run(cmd_prep, capture_output=True, text=True)
+            assert res_prep.returncode == 0, f"Failed to prepare container environment: {res_prep.stderr}"
+
+        # Write temporary test inventory
+        os.makedirs(os.path.dirname(INVENTORY_FILE), exist_ok=True)
+        with open(INVENTORY_FILE, "w") as f:
+            f.write("[servers]\n")
+            f.write(f"{CONTAINER_NAME} ansible_connection=docker ansible_user=root\n")
+
+        print("[+] Running Ansible playbook against test container...")
+        cmd_ansible = [
+            "ansible-playbook", "site.yml",
+            "-i", INVENTORY_FILE
+        ]
+        res_ansible = subprocess.run(cmd_ansible, cwd=WORKSPACE_DIR, capture_output=True, text=True)
+        print("Ansible Playbook Output:\n", res_ansible.stdout)
+        if res_ansible.returncode != 0:
+            print("Ansible Playbook Error:\n", res_ansible.stderr)
+        assert res_ansible.returncode == 0, f"Ansible playbook execution failed with return code {res_ansible.returncode}"
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove test container after tests complete."""
+        print(f"\n[+] Tearing down test container {CONTAINER_NAME}...")
+        subprocess.run(["docker", "rm", "-f", CONTAINER_NAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.path.exists(INVENTORY_FILE):
+            os.remove(INVENTORY_FILE)
+
+    def test_01_common_packages_installed(self):
+        """Verify git, jq, curl, and ripgrep are installed."""
+        for pkg_cmd in ["git --version", "jq --version", "curl --version", "rg --version"]:
+            res = subprocess.run(["docker", "exec", CONTAINER_NAME, "sh", "-c", pkg_cmd], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Command {pkg_cmd} failed: {res.stderr}")
+
+    def test_02_neovim_installation(self):
+        """Verify Neovim binary is installed and executable via symlink."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "nvim", "--version"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, f"Neovim execution failed: {res.stderr}")
+        self.assertIn("NVIM", res.stdout)
+
+    def test_03_docker_packages_installed(self):
+        """Verify Docker packages & keyrings directory were installed."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/apt/keyrings/docker.asc"], capture_output=True)
+        self.assertEqual(res.returncode, 0, "Docker GPG key file /etc/apt/keyrings/docker.asc missing")
+
+    def test_03b_docker_group_user(self):
+        """Verify docker group exists."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "getent", "group", "docker"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, "Docker group does not exist")
+
+    def test_04_traefik_directories_and_acme(self):
+        """Verify Traefik directories and acme.json permissions (0600)."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/traefik/dynamic"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/traefik/dynamic directory missing")
+
+        res_acme = subprocess.run(["docker", "exec", CONTAINER_NAME, "stat", "-c", "%a", "/opt/traefik/acme/acme.json"], capture_output=True, text=True)
+        self.assertEqual(res_acme.returncode, 0, "/opt/traefik/acme/acme.json file missing")
+        self.assertEqual(res_acme.stdout.strip(), "600", f"acme.json permissions expected 600, got {res_acme.stdout.strip()}")
+
+    def test_05_traefik_static_config(self):
+        """Verify traefik.yml static configuration contains DNS challenge settings."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/traefik/traefik.yml"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, "Failed to read /opt/traefik/traefik.yml")
+        content = res.stdout
+        self.assertIn("dnsChallenge:", content)
+        self.assertIn("provider: cloudflare", content)
+        self.assertIn("admin@debrutal.dev", content)
+
+    def test_06_traefik_docker_compose_config(self):
+        """Verify docker-compose.yml contains environment vars and domain router rules."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/traefik/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, "Failed to read /opt/traefik/docker-compose.yml")
+        content = res.stdout
+        self.assertIn("CF_DNS_API_TOKEN=", content)
+        self.assertIn("mini.debrutal.dev", content)
+        self.assertIn("*.mini.debrutal.dev", content)
+        self.assertIn("host.docker.internal:host-gateway", content)
+
+    def test_07_traefik_dynamic_config(self):
+        """Verify dynamic_conf.yml contains TLS default generated cert for *.mini.debrutal.dev and fusion router."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/traefik/dynamic/dynamic_conf.yml"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, "Failed to read /opt/traefik/dynamic/dynamic_conf.yml")
+        content = res.stdout
+        self.assertIn("defaultGeneratedCert:", content)
+        self.assertIn("main: \"mini.debrutal.dev\"", content)
+        self.assertIn("*.mini.debrutal.dev", content)
+        self.assertIn("fusion.mini.debrutal.dev", content)
+        self.assertIn("host.docker.internal:4040", content)
+
+
+    def test_09_gitea_installation(self):
+        """Verify Gitea containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/gitea"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/gitea directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/gitea/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/gitea/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("gitea.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("gitea/gitea", res_compose.stdout)
+        self.assertIn("GITEA__actions__ENABLED=true", res_compose.stdout)
+
+        # Verify runner services and directories
+        runner_count = int(os.environ.get("GITEA_RUNNER_COUNT", "4"))
+        for i in range(1, runner_count + 1):
+            self.assertIn(f"gitea-runner-{i}:", res_compose.stdout)
+            self.assertIn(f"gitea-runner-dind-{i}:", res_compose.stdout)
+            res_rdir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/gitea/runner-{i}-data"], capture_output=True)
+            self.assertEqual(res_rdir.returncode, 0, f"/opt/gitea/runner-{i}-data directory missing")
+            res_dinddir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/gitea/runner-{i}-dind-data"], capture_output=True)
+            self.assertEqual(res_dinddir.returncode, 0, f"/opt/gitea/runner-{i}-dind-data directory missing")
+        self.assertIn("gitea/act_runner", res_compose.stdout)
+        self.assertIn("dind-rootless", res_compose.stdout)
+        self.assertIn("DOCKER_HOST=tcp://gitea-runner-dind-", res_compose.stdout)
+
+    def test_10_homepage_installation(self):
+        """Verify Homepage containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/homepage"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/homepage directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/homepage/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/homepage/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("dash.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("dashboard.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("HOMEPAGE_ALLOWED_HOSTS", res_compose.stdout)
+
+    def test_11_lago_installation(self):
+        """Verify Lago containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/lago"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/lago directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/lago/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/lago/docker-compose.yml missing")
+        self.assertIn("API_URL:", res_compose.stdout)
+        self.assertIn("LAGO_DOMAIN:", res_compose.stdout)
+
+    def test_12_fusion_systemd_installation(self):
+        """Verify Fusion systemd service file creation."""
+        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/etc/systemd/system/fusion.service"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, "/etc/systemd/system/fusion.service missing")
+        self.assertIn("Description=Fusion Service", res.stdout)
+        self.assertIn("ExecStart=", res.stdout)
+        self.assertIn("WantedBy=multi-user.target", res.stdout)
+
+    def test_13_lgtm_installation(self):
+        """Verify LGTM containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/lgtm"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/lgtm directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/lgtm/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/lgtm/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("grafana.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("grafana/loki", res_compose.stdout)
+        self.assertIn("prom/prometheus", res_compose.stdout)
+        self.assertIn("grafana/tempo", res_compose.stdout)
+        self.assertIn("GF_AUTH_GENERIC_OAUTH_ENABLED:", res_compose.stdout)
+        self.assertIn("GF_AUTH_GENERIC_OAUTH_CLIENT_ID:", res_compose.stdout)
+
+    def test_14_bookorbit_installation(self):
+        """Verify BookOrbit containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/bookorbit"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/bookorbit directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/bookorbit/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/bookorbit/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("bookorbit.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("ghcr.io/bookorbit/bookorbit", res_compose.stdout)
+        self.assertIn("pgvector/pgvector", res_compose.stdout)
+        self.assertIn("POSTGRES_USER", res_compose.stdout)
+        self.assertIn("JWT_SECRET", res_compose.stdout)
+        self.assertIn("OIDC_ALLOW_LOCAL_ISSUERS", res_compose.stdout)
+
+        # Verify data directories
+        for subdir in ["data/app", "data/postgres", "books"]:
+            res_subdir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/bookorbit/{subdir}"], capture_output=True)
+            self.assertEqual(res_subdir.returncode, 0, f"/opt/bookorbit/{subdir} directory missing")
+
+        # Verify app-writable volumes are owned by the PUID/PGID the container drops to
+        for subdir in ["data/app", "books"]:
+            res_owner = subprocess.run(
+                ["docker", "exec", CONTAINER_NAME, "stat", "-c", "%u:%g", f"/opt/bookorbit/{subdir}"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res_owner.stdout.strip(), "1000:1000", f"/opt/bookorbit/{subdir} must be owned by 1000:1000")
+
+        # Verify the app process can actually write to its library volume
+        res_write = subprocess.run(
+            ["docker", "exec", "bookorbit-app", "sh", "-c", "su -s /bin/sh node -c 'mkdir /books/.perm_test && rmdir /books/.perm_test'"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res_write.returncode, 0, f"app user cannot write to /books: {res_write.stderr}")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
+
+
+
+

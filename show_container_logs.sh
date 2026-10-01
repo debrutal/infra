@@ -1,0 +1,1 @@
+scripts/show_container_logs.sh

@@ -1,0 +1,60 @@
+---
+- name: Create Uptime Kuma configuration directory
+  ansible.builtin.file:
+    path: "{{ uptime_kuma_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy AutoKuma configuration file
+  ansible.builtin.template:
+    src: autokuma-config.toml.j2
+    dest: "{{ uptime_kuma_dir }}/autokuma-config.toml"
+    mode: '0644'
+
+- name: Deploy Uptime Kuma docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ uptime_kuma_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Start Uptime Kuma container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ uptime_kuma_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Uptime Kuma container to be available
+  ansible.builtin.command: >
+    docker exec uptime-kuma node -v
+  register: uptime_kuma_wait_res
+  until: uptime_kuma_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update Uptime Kuma admin user
+  ansible.builtin.command: >
+    docker exec uptime-kuma node -e "
+    const R = require('redbean-node');
+    const bcrypt = require('bcryptjs');
+    async function run() {
+      R.setup('sqlite', { file: '/app/data/kuma.db' });
+      const hash = await bcrypt.hash('{{ uptime_kuma_password }}', 10);
+      let user = await R.findOne('user', ' username = ? ', ['{{ uptime_kuma_username }}']);
+      if (!user) {
+        user = R.dispense('user');
+        user.username = '{{ uptime_kuma_username }}';
+        user.active = 1;
+      }
+      user.password = hash;
+      await R.store(user);
+      await R.close();
+    }
+    run().catch(console.error);
+    "
+  register: uptime_kuma_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

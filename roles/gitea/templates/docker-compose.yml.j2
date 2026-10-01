@@ -1,0 +1,92 @@
+services:
+  gitea:
+    image: gitea/gitea:{{ gitea_version }}
+    container_name: gitea
+    restart: always
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__ROOT_URL={{ gitea_site_url }}/
+      - GITEA__server__DOMAIN={{ gitea_domain }}
+      - GITEA__server__SSH_DOMAIN={{ gitea_domain }}
+      - GITEA__server__SSH_PORT={{ gitea_ssh_port }}
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__service__DISABLE_REGISTRATION=false
+      - GITEA__actions__ENABLED=true
+      - GITEA__packages__ENABLED=true
+      - GITEA__webhook__ALLOWED_HOST_LIST={{ gitea_webhook_allowed_host_list }}
+{% if gitea_otel_enabled | default(true) %}
+      - GITEA__opentelemetry__ENABLED=true
+      - GITEA__opentelemetry__EXPORTER=otlp
+      - GITEA__opentelemetry__ENDPOINT=otel-collector:4317
+      - GITEA__opentelemetry__PROTOCOL=grpc
+      - GITEA__opentelemetry__INSECURE=true
+      - GITEA__opentelemetry__SERVICE_NAME=gitea
+{% endif %}
+    volumes:
+      - {{ gitea_dir }}/data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "{{ gitea_ssh_port }}:2222"
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.rule=Host(`{{ gitea_domain }}`)"
+      - "traefik.http.routers.gitea.entrypoints={{ gitea_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.gitea.tls=true"
+{% if gitea_traefik_certresolver is defined and gitea_traefik_certresolver %}
+      - "traefik.http.routers.gitea.tls.certresolver={{ gitea_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+      - "kuma.gitea.http.name=Gitea"
+      - "kuma.gitea.http.url=http://gitea:3000"
+      - "homepage.group=Development & CI"
+      - "homepage.name=Gitea"
+      - "homepage.icon=gitea"
+      - "homepage.href={{ gitea_site_url }}"
+      - "homepage.description=Self-Hosted Git Service"
+
+{% if gitea_runner_enabled | default(true) %}
+{% for i in range(1, (gitea_runner_count | default(4) | int) + 1) %}
+  gitea-runner-dind-{{ i }}:
+    image: docker:{{ gitea_dind_version | default('dind-rootless') }}
+    container_name: gitea-runner-dind-{{ i }}
+    privileged: true
+    restart: always
+    environment:
+      - DOCKER_TLS_CERTDIR=
+    volumes:
+      - {{ gitea_dir }}/runner-{{ i }}-dind-data:/var/lib/docker
+    networks:
+      - default
+
+  gitea-runner-{{ i }}:
+    image: gitea/act_runner:{{ gitea_runner_version | default('latest') }}
+    container_name: gitea-runner-{{ i }}
+    restart: always
+    environment:
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN={{ gitea_runner_registration_token | default('') }}
+      - GITEA_RUNNER_NAME=gitea-runner-{{ i }}
+      - DOCKER_HOST=tcp://gitea-runner-dind-{{ i }}:2375
+      - DOCKER_API_VERSION={{ gitea_docker_api_version | default('1.40') }}
+    volumes:
+      - {{ gitea_dir }}/runner-{{ i }}-data:/data
+    depends_on:
+      - gitea
+      - gitea-runner-dind-{{ i }}
+    networks:
+      - default
+{% endfor %}
+{% endif %}
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ gitea_traefik_network }}

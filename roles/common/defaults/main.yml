@@ -1,0 +1,12 @@
+---
+common_packages:
+  - git
+  - jq
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - tar
+  - unzip
+  - ripgrep

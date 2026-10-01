@@ -1,0 +1,100 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: espocrm-db
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: "{{ espocrm_db_root_password }}"
+      MARIADB_DATABASE: "{{ espocrm_db_name }}"
+      MARIADB_USER: "{{ espocrm_db_user }}"
+      MARIADB_PASSWORD: "{{ espocrm_db_password }}"
+    volumes:
+      - espocrm_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 20s
+      start_period: 10s
+      timeout: 10s
+      retries: 3
+
+  espocrm:
+    image: espocrm/espocrm:{{ espocrm_version }}
+    container_name: espocrm
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ESPOCRM_DATABASE_PLATFORM: Mysql
+      ESPOCRM_DATABASE_HOST: db
+      ESPOCRM_DATABASE_USER: "{{ espocrm_db_user }}"
+      ESPOCRM_DATABASE_PASSWORD: "{{ espocrm_db_password }}"
+      ESPOCRM_DATABASE_NAME: "{{ espocrm_db_name }}"
+      ESPOCRM_ADMIN_USERNAME: "{{ espocrm_admin_username }}"
+      ESPOCRM_ADMIN_PASSWORD: "{{ espocrm_admin_password }}"
+      ESPOCRM_ADMIN_EMAIL: "{{ espocrm_admin_email }}"
+      ESPOCRM_SITE_URL: "{{ espocrm_site_url }}"
+    volumes:
+      - espocrm_data:/var/www/html/data
+      - espocrm_custom:/var/www/html/custom
+      - espocrm_custom_client:/var/www/html/client/custom
+    healthcheck:
+      test: ["CMD", "bin/command", "app-check"]
+      start_period: 20s
+      interval: 60s
+      timeout: 20s
+      retries: 3
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.espocrm.rule=Host(`{{ espocrm_domain }}`){% if espocrm_domain_alias is defined and espocrm_domain_alias %} || Host(`{{ espocrm_domain_alias }}`){% endif %}"
+      - "traefik.http.routers.espocrm.entrypoints={{ espocrm_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.espocrm.tls=true"
+{% if espocrm_traefik_certresolver is defined and espocrm_traefik_certresolver %}
+      - "traefik.http.routers.espocrm.tls.certresolver={{ espocrm_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if espocrm_authentik_enabled | default(false) %}
+      - "traefik.http.routers.espocrm.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.espocrm.loadbalancer.server.port=80"
+      - "kuma.espocrm.http.name=EspoCRM"
+      - "kuma.espocrm.http.url=http://espocrm:80"
+      - "homepage.group=Business Applications"
+      - "homepage.name=EspoCRM"
+      - "homepage.icon=espocrm"
+      - "homepage.href={{ espocrm_site_url }}"
+      - "homepage.description=Customer Relationship Management"
+
+  espocrm-daemon:
+    image: espocrm/espocrm:{{ espocrm_version }}
+    container_name: espocrm-daemon
+    volumes_from:
+      - espocrm
+    restart: always
+    entrypoint: docker-daemon.sh
+    depends_on:
+      espocrm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bin/command", "app-check"]
+      start_period: 20s
+      interval: 180s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  espocrm_data:
+  espocrm_custom:
+  espocrm_custom_client:
+  espocrm_db_data:
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ espocrm_traefik_network }}
+

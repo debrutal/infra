@@ -1,0 +1,12 @@
+[kuma]
+url = "http://uptime-kuma:3001"
+{% if uptime_kuma_username is defined and uptime_kuma_username %}
+username = "{{ uptime_kuma_username }}"
+{% endif %}
+{% if uptime_kuma_password is defined and uptime_kuma_password %}
+password = "{{ uptime_kuma_password }}"
+{% endif %}
+
+[docker]
+label_prefix = "kuma"
+hosts = ["unix:///var/run/docker.sock"]

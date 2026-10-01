@@ -1,0 +1,11 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure python3 is installed in test container
+      ansible.builtin.raw: >-
+        DEBIAN_FRONTEND=noninteractive apt-get update &&
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-apt ca-certificates
+      changed_when: false

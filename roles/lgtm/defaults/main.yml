@@ -1,0 +1,26 @@
+---
+lgtm_dir: "/opt/lgtm"
+lgtm_version: "latest"
+lgtm_traefik_network: "{{ traefik_network_name }}"
+lgtm_traefik_certresolver: ""
+lgtm_traefik_entrypoints: "websecure"
+lgtm_domain: "grafana.mini.debrutal.dev"
+lgtm_prometheus_domain: "prometheus.mini.debrutal.dev"
+lgtm_loki_domain: "loki.mini.debrutal.dev"
+lgtm_tempo_domain: "tempo.mini.debrutal.dev"
+lgtm_site_url: "https://{{ lgtm_domain }}"
+lgtm_grafana_admin_username: "{{ vault_lgtm_admin_username | default(default_admin_username | default('debrutal')) }}"
+lgtm_grafana_admin_password: "{{ vault_lgtm_admin_password | default(default_admin_password | default('')) }}"
+lgtm_authentik_enabled: true
+lgtm_authentik_domain: "{{ authentik_domain | default('authentik.mini.debrutal.dev') }}"
+lgtm_authentik_client_id: "{{ authentik_grafana_client_id | default('grafana') }}"
+lgtm_authentik_client_secret: "{{ authentik_grafana_client_secret | default('grafana-secret-key-32-chars-minimum!') }}"
+
+# OpenTelemetry Collector
+lgtm_otel_collector_version: "0.111.0"
+
+# cAdvisor (container metrics)
+lgtm_cadvisor_version: "v0.49.1"
+
+# Prometheus scrape targets
+lgtm_scrape_authentik: true

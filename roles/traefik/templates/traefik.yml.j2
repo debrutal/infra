@@ -1,0 +1,130 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: "{{ traefik_log_level }}"
+
+api:
+  dashboard: {{ traefik_enable_dashboard | lower }}
+  insecure: {{ traefik_dashboard_insecure | lower }}
+
+entryPoints:
+  web:
+    address: ":{{ traefik_http_port }}"
+    http:
+      aliasHeadersStrategy: "{{ traefik_alias_headers_strategy }}"
+      encodedCharacters:
+        allowEncodedSlash: {{ traefik_encoded_characters_allow_slash | lower }}
+        allowEncodedBackSlash: {{ traefik_encoded_characters_allow_backslash | lower }}
+        allowEncodedHash: {{ traefik_encoded_characters_allow_hash | lower }}
+        allowEncodedNullCharacter: {{ traefik_encoded_characters_allow_null | lower }}
+        allowEncodedPercent: {{ traefik_encoded_characters_allow_percent | lower }}
+        allowEncodedQuestionMark: {{ traefik_encoded_characters_allow_questionmark | lower }}
+        allowEncodedSemicolon: {{ traefik_encoded_characters_allow_semicolon | lower }}
+{% if traefik_acme_enabled %}
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+{% endif %}
+  websecure:
+    address: ":{{ traefik_https_port }}"
+    http:
+      aliasHeadersStrategy: "{{ traefik_alias_headers_strategy }}"
+      encodedCharacters:
+        allowEncodedSlash: {{ traefik_encoded_characters_allow_slash | lower }}
+        allowEncodedBackSlash: {{ traefik_encoded_characters_allow_backslash | lower }}
+        allowEncodedHash: {{ traefik_encoded_characters_allow_hash | lower }}
+        allowEncodedNullCharacter: {{ traefik_encoded_characters_allow_null | lower }}
+        allowEncodedPercent: {{ traefik_encoded_characters_allow_percent | lower }}
+        allowEncodedQuestionMark: {{ traefik_encoded_characters_allow_questionmark | lower }}
+        allowEncodedSemicolon: {{ traefik_encoded_characters_allow_semicolon | lower }}
+{% if traefik_acme_enabled %}
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "{{ traefik_acme_domain_main }}"
+            sans:
+{% for san in traefik_acme_domain_sans %}
+              - "{{ san }}"
+{% endfor %}
+{% endif %}
+{% if traefik_enable_dashboard and traefik_dashboard_insecure %}
+  traefik:
+    address: ":{{ traefik_dashboard_port }}"
+    http:
+      aliasHeadersStrategy: "{{ traefik_alias_headers_strategy }}"
+      encodedCharacters:
+        allowEncodedSlash: {{ traefik_encoded_characters_allow_slash | lower }}
+        allowEncodedBackSlash: {{ traefik_encoded_characters_allow_backslash | lower }}
+        allowEncodedHash: {{ traefik_encoded_characters_allow_hash | lower }}
+        allowEncodedNullCharacter: {{ traefik_encoded_characters_allow_null | lower }}
+        allowEncodedPercent: {{ traefik_encoded_characters_allow_percent | lower }}
+        allowEncodedQuestionMark: {{ traefik_encoded_characters_allow_questionmark | lower }}
+        allowEncodedSemicolon: {{ traefik_encoded_characters_allow_semicolon | lower }}
+{% endif %}
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "{{ traefik_network_name }}"
+    watch: true
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+{% if traefik_acme_enabled %}
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "{{ traefik_acme_email }}"
+      storage: "/etc/traefik/acme/acme.json"
+{% if traefik_acme_challenge_type == 'dns' %}
+      dnsChallenge:
+        provider: {{ traefik_acme_dns_provider }}
+{% if traefik_acme_dns_delay is defined and traefik_acme_dns_delay > 0 %}
+        propagation:
+          delayBeforeChecks: {{ traefik_acme_dns_delay }}
+{% endif %}
+{% if traefik_acme_dns_resolvers is defined and traefik_acme_dns_resolvers %}
+        resolvers:
+{% for resolver in traefik_acme_dns_resolvers %}
+          - "{{ resolver }}"
+{% endfor %}
+{% endif %}
+{% else %}
+      httpChallenge:
+        entryPoint: web
+{% endif %}
+{% endif %}
+
+{% if traefik_otel_enabled | default(true) %}
+tracing:
+  serviceName: traefik
+  sampleRate: 1.0
+  otlp:
+    grpc:
+      endpoint: "otel-collector:4317"
+      insecure: true
+{% endif %}
+
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    entryPoint: traefik
+{% if traefik_otel_enabled | default(true) %}
+  otlp:
+    grpc:
+      endpoint: "otel-collector:4317"
+      insecure: true
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+{% endif %}
+
+ping:
+  entryPoint: traefik

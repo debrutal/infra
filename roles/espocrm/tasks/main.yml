@@ -1,0 +1,58 @@
+---
+- name: Create EspoCRM configuration directory
+  ansible.builtin.file:
+    path: "{{ espocrm_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy EspoCRM docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ espocrm_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Start EspoCRM container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ espocrm_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for EspoCRM service to be available
+  ansible.builtin.command: >
+    docker exec espocrm bin/command app-check
+  register: espocrm_wait_res
+  until: espocrm_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update EspoCRM admin user
+  ansible.builtin.command: >
+    docker exec espocrm php -r "
+    require_once('bootstrap.php');
+    \$app = new \Espo\Core\Application();
+    \$app->setupSystem();
+    \$entityManager = \$app->getContainer()->get('entityManager');
+    \$user = \$entityManager->getRDBRepository('User')->where(['username' => '{{ espocrm_admin_username }}'])->findOne();
+    if (!\$user) {
+        \$user = \$entityManager->getEntity('User');
+        \$user->set([
+            'username' => '{{ espocrm_admin_username }}',
+            'emailAddress' => '{{ espocrm_admin_email }}',
+            'type' => 'admin',
+            'isActive' => true
+        ]);
+    } else {
+        \$user->set('emailAddress', '{{ espocrm_admin_email }}');
+        \$user->set('isActive', true);
+    }
+    \$passwordHash = \$app->getContainer()->get('passwordHash');
+    \$user->set('password', \$passwordHash->hash('{{ espocrm_admin_password }}'));
+    \$entityManager->saveEntity(\$user);
+    "
+  register: espocrm_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

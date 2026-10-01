@@ -1,0 +1,96 @@
+---
+- name: Create Invoice Ninja configuration directory
+  ansible.builtin.file:
+    path: "{{ invoiceninja_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Check if Invoice Ninja APP_KEY file exists
+  ansible.builtin.stat:
+    path: "{{ invoiceninja_dir }}/app_key"
+  register: invoiceninja_key_file
+
+- name: Generate Invoice Ninja APP_KEY file if not set
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo "base64:$(openssl rand -base64 32)" > "{{ invoiceninja_dir }}/app_key"
+  args:
+    executable: /bin/bash
+    creates: "{{ invoiceninja_dir }}/app_key"
+  when:
+    - invoiceninja_app_key | default('', true) == ''
+    - not invoiceninja_key_file.stat.exists
+
+- name: Read generated Invoice Ninja APP_KEY file
+  ansible.builtin.slurp:
+    src: "{{ invoiceninja_dir }}/app_key"
+  register: invoiceninja_slurped_app_key
+  when: invoiceninja_app_key | default('', true) == ''
+
+- name: Set final Invoice Ninja APP_KEY variable
+  ansible.builtin.set_fact:
+    invoiceninja_app_key_effective: >-
+      {{ invoiceninja_app_key if (invoiceninja_app_key | default('', true) != '')
+         else (invoiceninja_slurped_app_key.content | b64decode | trim) }}
+
+- name: Deploy Invoice Ninja nginx vhost configuration
+  ansible.builtin.template:
+    src: in-vhost.conf.j2
+    dest: "{{ invoiceninja_dir }}/in-vhost.conf"
+    mode: '0644'
+
+- name: Deploy Invoice Ninja docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ invoiceninja_dir }}/docker-compose.yml"
+    mode: '0644'
+  vars:
+    invoiceninja_app_key: "{{ invoiceninja_app_key_effective }}"
+
+- name: Start Invoice Ninja container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ invoiceninja_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Invoice Ninja service to be available
+  ansible.builtin.command: >
+    docker exec invoiceninja-app php artisan --version
+  register: invoiceninja_wait_res
+  until: invoiceninja_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update Invoice Ninja admin user
+  ansible.builtin.command: >-
+    docker exec invoiceninja-app php artisan tinker --execute="
+    \$u = \App\Models\User::where('email', '{{ invoiceninja_admin_email }}')->first();
+    if (!\$u) {
+        \$a = \App\Models\Account::first();
+        if (!\$a) {
+            \Illuminate\Support\Facades\Artisan::call('ninja:create-account', [
+                '--email' => '{{ invoiceninja_admin_email }}',
+                '--password' => '{{ invoiceninja_admin_password }}',
+                '--first_name' => '{{ invoiceninja_admin_user }}',
+                '--last_name' => 'User'
+            ]);
+        } else {
+            \$u = new \App\Models\User();
+            \$u->first_name = '{{ invoiceninja_admin_user }}';
+            \$u->last_name = 'User';
+            \$u->email = '{{ invoiceninja_admin_email }}';
+            \$u->password = \Illuminate\Support\Facades\Hash::make('{{ invoiceninja_admin_password }}');
+            \$u->account_id = \$a->id;
+            \$u->save();
+        }
+    } else {
+        \$u->password = \Illuminate\Support\Facades\Hash::make('{{ invoiceninja_admin_password }}');
+        \$u->save();
+    }"
+  register: invoiceninja_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

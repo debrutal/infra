@@ -1,0 +1,8 @@
+---
+- name: Undeploy Lago
+  ansible.builtin.import_tasks: undeploy.yml
+  when: lago_undeploy | bool
+
+- name: Deploy Lago
+  ansible.builtin.import_tasks: deploy.yml
+  when: not lago_undeploy | bool

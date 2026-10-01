@@ -1,0 +1,7 @@
+---
+- name: Restart Traefik
+  community.docker.docker_compose_v2:
+    project_src: "{{ traefik_dir }}"
+    state: present
+    recreate: always
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

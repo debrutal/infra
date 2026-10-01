@@ -1,0 +1,6 @@
+---
+- name: Restart BookOrbit
+  community.docker.docker_compose_v2:
+    project_src: "{{ bookorbit_dir }}"
+    state: restarted
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

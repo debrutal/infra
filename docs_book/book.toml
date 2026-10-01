@@ -1,0 +1,10 @@
+[book]
+authors = ["Dennis Winter <admin@debrutal.dev>"]
+language = "en"
+src = "src"
+title = "Minisforum Infra - Developer & Architecture Guide"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+mathjax-support = true

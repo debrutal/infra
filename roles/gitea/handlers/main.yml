@@ -1,0 +1,14 @@
+---
+- name: Reload AppArmor
+  ansible.builtin.command: >-
+    apparmor_parser -r /etc/apparmor.d/usr.local.bin.rootlesskit
+  changed_when: true
+  when:
+    - gitea_apparmor_profile is defined
+    - gitea_apparmor_profile is changed
+
+- name: Restart Gitea
+  community.docker.docker_compose_v2:
+    project_src: "{{ gitea_dir }}"
+    state: restarted
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

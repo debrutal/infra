@@ -1,0 +1,50 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:{{ uptime_kuma_version }}
+    container_name: uptime-kuma
+    restart: always
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime_kuma.rule=Host(`{{ uptime_kuma_domain }}`)"
+      - "traefik.http.routers.uptime_kuma.entrypoints={{ uptime_kuma_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.uptime_kuma.tls=true"
+{% if uptime_kuma_traefik_certresolver is defined and uptime_kuma_traefik_certresolver %}
+      - "traefik.http.routers.uptime_kuma.tls.certresolver={{ uptime_kuma_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if uptime_kuma_authentik_enabled | default(false) %}
+      - "traefik.http.routers.uptime_kuma.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.uptime_kuma.loadbalancer.server.port=3001"
+      - "kuma.uptime-kuma.http.name=Uptime Kuma"
+      - "kuma.uptime-kuma.http.url=http://uptime-kuma:3001"
+      - "homepage.group=Monitoring & Health"
+      - "homepage.name=Uptime Kuma"
+      - "homepage.icon=uptime-kuma"
+      - "homepage.href={{ uptime_kuma_site_url }}"
+      - "homepage.description=Status Page & Health Monitoring"
+
+  autokuma:
+    image: ghcr.io/bigboot/autokuma:latest
+    container_name: autokuma
+    restart: always
+    depends_on:
+      - uptime-kuma
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - {{ uptime_kuma_dir }}/autokuma-config.toml:/autokuma.toml:ro
+
+volumes:
+  uptime_kuma_data:
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ uptime_kuma_traefik_network }}

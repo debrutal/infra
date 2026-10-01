@@ -1,0 +1,78 @@
+---
+- name: Create Lago configuration directory
+  ansible.builtin.file:
+    path: "{{ lago_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Check if Lago RSA private key file exists
+  ansible.builtin.stat:
+    path: "{{ lago_dir }}/lago_rsa.key"
+  register: lago_rsa_key_file
+
+- name: Generate Lago RSA private key file if not set
+  ansible.builtin.shell: |
+    set -o pipefail
+    openssl genrsa 2048 | openssl base64 -A > "{{ lago_dir }}/lago_rsa.key"
+  args:
+    executable: /bin/bash
+    creates: "{{ lago_dir }}/lago_rsa.key"
+  when:
+    - lago_rsa_private_key | default('', true) == ''
+    - not lago_rsa_key_file.stat.exists
+
+- name: Read generated Lago RSA key file
+  ansible.builtin.slurp:
+    src: "{{ lago_dir }}/lago_rsa.key"
+  register: lago_slurped_rsa_key
+  when: lago_rsa_private_key | default('', true) == ''
+
+- name: Set final RSA private key variable
+  ansible.builtin.set_fact:
+    lago_rsa_private_key_effective: >-
+      {{ lago_rsa_private_key if (lago_rsa_private_key | default('', true) != '')
+      else (lago_slurped_rsa_key.content | b64decode | trim) }}
+
+- name: Deploy Lago docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ lago_dir }}/docker-compose.yml"
+    mode: '0644'
+  vars:
+    lago_rsa_private_key: "{{ lago_rsa_private_key_effective }}"
+
+- name: Start Lago container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ lago_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Lago API service to be available
+  ansible.builtin.command: >
+    docker exec lago-api bundle exec rails -v
+  register: lago_wait_res
+  until: lago_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update Lago admin user
+  ansible.builtin.command: >
+    docker exec lago-api bundle exec rails runner "
+    user = User.find_or_initialize_by(email: '{{ lago_admin_email }}')
+    user.firstname = '{{ lago_admin_user }}'
+    user.lastname = 'User'
+    user.password = '{{ lago_admin_password }}'
+    user.password_confirmation = '{{ lago_admin_password }}'
+    user.save!
+    if user.memberships.empty?
+      org = Organization.first_or_create!(name: 'Default Organization')
+      Membership.create!(user: user, organization: org, role: :admin)
+    end
+    "
+  register: lago_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

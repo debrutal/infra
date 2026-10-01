@@ -1,0 +1,73 @@
+- Security & Identity:
+    - Authentik:
+        icon: authentik
+        href: "{{ authentik_site_url }}"
+        description: Identity Provider & Single Sign-On
+
+- Infrastructure:
+    - Traefik Proxy:
+
+        icon: traefik
+        href: "https://{{ traefik_acme_domain_main }}"
+        description: Reverse Proxy & Edge Ingress
+    - Homepage Dashboard:
+        icon: homepage
+        href: "{{ homepage_site_url }}"
+        description: Central Infrastructure Dashboard
+    - Fusion:
+        icon: fusion
+        href: "{{ fusion_site_url | default('https://fusion.mini.debrutal.dev') }}"
+        description: Fusion Host Service (Port 4040)
+
+
+- Billing & Invoicing:
+    - Invoice Ninja:
+        icon: invoiceninja
+        href: "{{ invoiceninja_app_url }}"
+        description: Invoicing & Expense Management
+
+- Business Applications:
+    - EspoCRM:
+        icon: espocrm
+        href: "{{ espocrm_site_url }}"
+        description: Customer Relationship Management
+
+- Monitoring & Health:
+    - Uptime Kuma:
+        icon: uptime-kuma
+        href: "{{ uptime_kuma_site_url }}"
+        description: Status Page & Health Monitoring
+        widget:
+          type: uptimekuma
+          url: "{{ homepage_uptime_kuma_url | default('http://uptime-kuma:3001') }}"
+          slug: "{{ homepage_uptime_kuma_slug | default('default') }}"
+    - Sentry (GlitchTip):
+        icon: sentry
+        href: "{{ sentry_site_url }}"
+        description: Application Error Tracking & Diagnostics
+    - Grafana (LGTM):
+        icon: grafana
+        href: "{{ lgtm_site_url }}"
+        description: Loki, Grafana, Tempo & Prometheus Stack
+
+
+- Development & CI:
+    - Gitea:
+        icon: gitea
+        href: "{{ gitea_site_url | default('https://gitea.mini.debrutal.dev') }}"
+        description: Self-Hosted Git Service
+        container: gitea
+
+
+- Media & Knowledge:
+    - BookOrbit:
+        icon: bookorbit
+        href: "{{ bookorbit_site_url }}"
+        description: Self-Hosted Library & Reading Platform
+        container: bookorbit-app
+
+- Smart Home & Automation:
+    - Home Assistant:
+        icon: home-assistant
+        href: "{{ homepage_home_assistant_url | default('http://homeassistant.local:8123') }}"
+        description: Open Source Home Automation & Smart Home Hub

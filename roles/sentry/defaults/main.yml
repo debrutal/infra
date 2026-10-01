@@ -1,0 +1,18 @@
+---
+sentry_version: "6.2.6"
+sentry_dir: "/opt/sentry"
+sentry_traefik_network: "traefik-net"
+sentry_traefik_certresolver: ""
+sentry_traefik_entrypoints: "websecure"
+sentry_domain: "sentry.mini.debrutal.dev"
+sentry_site_url: "https://{{ sentry_domain }}"
+sentry_db_name: "sentry"
+sentry_db_user: "sentry"
+sentry_db_password: "changeme"
+sentry_secret_key: ""
+sentry_admin_user: "{{ vault_sentry_admin_user | default(default_admin_username | default('debrutal')) }}"
+sentry_admin_email: "{{ vault_sentry_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
+sentry_admin_password: "{{ vault_sentry_admin_password | default(default_admin_password | default('')) }}"
+
+# OpenTelemetry
+sentry_otel_enabled: true

@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentry-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: "{{ sentry_db_name }}"
+      POSTGRES_USER: "{{ sentry_db_user }}"
+      POSTGRES_PASSWORD: "{{ sentry_db_password }}"
+    volumes:
+      - sentry_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ sentry_db_user }} -d {{ sentry_db_name }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentry-redis
+    restart: always
+
+  migrate:
+    image: glitchtip/glitchtip:{{ sentry_version }}
+    container_name: sentry-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ./manage.py migrate
+    environment:
+      DATABASE_URL: "postgres://{{ sentry_db_user }}:{{ sentry_db_password }}@postgres:5432/{{ sentry_db_name }}"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "{{ sentry_secret_key }}"
+      GLITCHTIP_DOMAIN: "{{ sentry_site_url }}"
+
+  web:
+    image: glitchtip/glitchtip:{{ sentry_version }}
+    container_name: sentry-web
+    restart: always
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://{{ sentry_db_user }}:{{ sentry_db_password }}@postgres:5432/{{ sentry_db_name }}"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "{{ sentry_secret_key }}"
+      GLITCHTIP_DOMAIN: "{{ sentry_site_url }}"
+{% if sentry_otel_enabled | default(true) %}
+      OTEL_SERVICE_NAME: "glitchtip"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "none"
+      OTEL_LOGS_EXPORTER: "none"
+{% endif %}
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sentry.rule=Host(`{{ sentry_domain }}`)"
+      - "traefik.http.routers.sentry.entrypoints={{ sentry_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.sentry.tls=true"
+{% if sentry_traefik_certresolver is defined and sentry_traefik_certresolver %}
+      - "traefik.http.routers.sentry.tls.certresolver={{ sentry_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if sentry_authentik_enabled | default(false) %}
+      - "traefik.http.routers.sentry.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.sentry.loadbalancer.server.port=8000"
+      - "kuma.sentry.http.name=Sentry (GlitchTip)"
+      - "kuma.sentry.http.url=http://sentry-web:8000"
+      - "homepage.group=Monitoring & Health"
+      - "homepage.name=Sentry (GlitchTip)"
+      - "homepage.icon=sentry"
+      - "homepage.href={{ sentry_site_url }}"
+      - "homepage.description=Application Error Tracking & Diagnostics"
+
+  worker:
+    image: glitchtip/glitchtip:{{ sentry_version }}
+    container_name: sentry-worker
+    restart: always
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: "postgres://{{ sentry_db_user }}:{{ sentry_db_password }}@postgres:5432/{{ sentry_db_name }}"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "{{ sentry_secret_key }}"
+      GLITCHTIP_DOMAIN: "{{ sentry_site_url }}"
+
+volumes:
+  sentry_postgres_data:
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ sentry_traefik_network }}

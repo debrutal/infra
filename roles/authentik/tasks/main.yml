@@ -1,0 +1,136 @@
+---
+- name: Create Authentik configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ authentik_dir }}"
+    - "{{ authentik_dir }}/postgres"
+    - "{{ authentik_dir }}/redis"
+    - "{{ authentik_dir }}/media"
+    - "{{ authentik_dir }}/custom-templates"
+    - "{{ authentik_dir }}/certs"
+
+- name: Deploy Authentik docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ authentik_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Authentik
+
+- name: Start Authentik container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ authentik_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Authentik service to be available
+  ansible.builtin.command: >
+    docker exec authentik-server python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9000/-/health/live/')"
+  register: authentik_wait_res
+  until: authentik_wait_res.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create or update Authentik admin user
+  ansible.builtin.command: >
+    docker exec authentik-server ak shell -c "
+    from authentik.core.models import User, Group;
+    user, _ = User.objects.get_or_create(username='{{ authentik_admin_username }}', defaults={'email': '{{ authentik_admin_email }}'});
+    user.email = '{{ authentik_admin_email }}';
+    user.set_password('{{ authentik_admin_password }}');
+    user.save();
+    admin_group = Group.objects.filter(name='authentik Admins').first();
+    admin_group.users.add(user) if admin_group else None;
+    "
+  register: authentik_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Configure Authentik ForwardAuth and OIDC Providers for applications
+  ansible.builtin.command: >
+    docker exec authentik-server ak shell -c "
+    from authentik.providers.proxy.models import ProxyProvider, ProxyMode;
+    from authentik.providers.oauth2.models import OAuth2Provider, ClientTypes, RedirectURI, ScopeMapping;
+    from authentik.core.models import Application;
+    from authentik.outposts.models import Outpost;
+    from authentik.flows.models import Flow;
+
+    implicit_flow = Flow.objects.get(slug='default-provider-authorization-implicit-consent');
+    explicit_flow = Flow.objects.get(slug='default-provider-authorization-explicit-consent');
+    scopes = ScopeMapping.objects.all();
+
+    hp_provider, _ = ProxyProvider.objects.get_or_create(
+        name='Homepage ForwardAuth',
+        defaults={
+            'mode': ProxyMode.FORWARD_SINGLE,
+            'external_host': 'https://{{ homepage_domain | default("dash.mini.debrutal.dev") }}',
+            'authorization_flow': implicit_flow,
+        }
+    );
+    hp_provider.mode = ProxyMode.FORWARD_SINGLE;
+    hp_provider.external_host = 'https://{{ homepage_domain | default("dash.mini.debrutal.dev") }}';
+    hp_provider.save();
+    hp_app, _ = Application.objects.get_or_create(
+        slug='homepage',
+        defaults={'name': 'Homepage Dashboard', 'provider': hp_provider}
+    );
+    hp_app.provider = hp_provider;
+    hp_app.save();
+    outpost = Outpost.objects.filter(name='authentik Embedded Outpost').first();
+    if outpost:
+        outpost.providers.add(hp_provider);
+        outpost.save();
+
+    gitea_provider, _ = OAuth2Provider.objects.get_or_create(
+        name='Gitea OIDC Provider',
+        defaults={
+            'client_id': '{{ authentik_gitea_client_id }}',
+            'client_secret': '{{ authentik_gitea_client_secret }}',
+            'client_type': ClientTypes.CONFIDENTIAL,
+            'authorization_flow': explicit_flow,
+        }
+    );
+    gitea_provider.redirect_uris = [RedirectURI(matching_mode='regex', url='https://{{ gitea_domain | default("gitea.mini.debrutal.dev") }}/.*')];
+    gitea_provider.property_mappings.set(scopes);
+    gitea_provider.save();
+    Application.objects.get_or_create(slug='gitea', defaults={'name': 'Gitea', 'provider': gitea_provider});
+
+    grafana_provider, _ = OAuth2Provider.objects.get_or_create(
+        name='Grafana OIDC Provider',
+        defaults={
+            'client_id': '{{ authentik_grafana_client_id }}',
+            'client_secret': '{{ authentik_grafana_client_secret }}',
+            'client_type': ClientTypes.CONFIDENTIAL,
+            'authorization_flow': explicit_flow,
+        }
+    );
+    grafana_provider.redirect_uris = [RedirectURI(matching_mode='regex', url='https://{{ lgtm_domain | default("grafana.mini.debrutal.dev") }}/.*')];
+    grafana_provider.property_mappings.set(scopes);
+    grafana_provider.save();
+    Application.objects.get_or_create(slug='grafana', defaults={'name': 'Grafana (LGTM)', 'provider': grafana_provider});
+
+    bookorbit_provider, _ = OAuth2Provider.objects.get_or_create(
+        name='BookOrbit OIDC Provider',
+        defaults={
+            'client_id': '{{ authentik_bookorbit_client_id }}',
+            'client_secret': '{{ authentik_bookorbit_client_secret }}',
+            'client_type': ClientTypes.CONFIDENTIAL,
+            'authorization_flow': explicit_flow,
+        }
+    );
+    bookorbit_provider.redirect_uris = [RedirectURI(matching_mode='strict', url='https://{{ bookorbit_domain | default("bookorbit.mini.debrutal.dev") }}/oauth2-callback')];
+    bookorbit_provider.property_mappings.set(scopes);
+    bookorbit_provider.save();
+    Application.objects.get_or_create(slug='bookorbit', defaults={'name': 'BookOrbit', 'provider': bookorbit_provider});
+    "
+
+  register: authentik_providers_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

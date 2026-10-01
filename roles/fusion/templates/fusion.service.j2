@@ -1,0 +1,32 @@
+[Unit]
+Description=Fusion Service (Native Host App at Port {{ fusion_port }})
+After=network.target remote-fs.target syslog.target
+Wants=network.target
+
+[Service]
+Type=simple
+User={{ fusion_user }}
+Group={{ fusion_group }}
+{% if fusion_working_dir is defined and fusion_working_dir %}
+WorkingDirectory={{ fusion_working_dir }}
+{% endif %}
+ExecStart={{ fusion_exec_start }}
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+{% if fusion_environment_vars is defined and fusion_environment_vars %}
+{% for key, val in fusion_environment_vars.items() %}
+Environment="{{ key }}={{ val }}"
+{% endfor %}
+{% endif %}
+{% if fusion_otel_enabled | default(true) %}
+Environment="OTEL_SERVICE_NAME=fusion"
+Environment="OTEL_EXPORTER_OTLP_ENDPOINT={{ fusion_otel_endpoint }}"
+Environment="OTEL_EXPORTER_OTLP_PROTOCOL=grpc"
+Environment="OTEL_TRACES_EXPORTER=otlp"
+Environment="OTEL_METRICS_EXPORTER=none"
+Environment="OTEL_LOGS_EXPORTER=none"
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

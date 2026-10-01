@@ -1,0 +1,58 @@
+services:
+  traefik:
+    image: traefik:{{ traefik_version }}
+    container_name: traefik
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "{{ traefik_http_port }}:80"
+      - "{{ traefik_https_port }}:443"
+{% if traefik_enable_dashboard and traefik_dashboard_insecure %}
+      - "{{ traefik_dashboard_port }}:8080"
+{% endif %}
+{% if traefik_acme_dns_env is defined and traefik_acme_dns_env %}
+    environment:
+{% for key, value in traefik_acme_dns_env.items() %}
+      - "{{ key }}={{ value }}"
+{% endfor %}
+{% endif %}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - {{ traefik_dir }}/traefik.yml:/etc/traefik/traefik.yml:ro
+      - {{ traefik_dir }}/dynamic:/etc/traefik/dynamic:ro
+      - {{ traefik_dir }}/acme/acme.json:/etc/traefik/acme/acme.json
+    networks:
+      - traefik_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik_api.rule=Host(`traefik.local`) || Host(`traefik.mini.debrutal.dev`) || Host(`dashboard.mini.debrutal.dev`)"
+      - "traefik.http.routers.traefik_api.service=api@internal"
+{% if traefik_acme_enabled %}
+      - "traefik.http.routers.traefik_api.entrypoints=websecure"
+      - "traefik.http.routers.traefik_api.tls=true"
+      - "traefik.http.routers.traefik_api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik_api.tls.domains[0].main={{ traefik_acme_domain_main }}"
+{% for san in traefik_acme_domain_sans %}
+      - "traefik.http.routers.traefik_api.tls.domains[0].sans={{ san }}"
+{% endfor %}
+{% if traefik_authentik_enabled | default(true) %}
+      - "traefik.http.routers.traefik_api.middlewares=authentik@file"
+{% endif %}
+{% endif %}
+      - "kuma.traefik.http.name=Traefik Proxy"
+      - "kuma.traefik.http.url=http://traefik:8080/ping"
+      - "homepage.group=Infrastructure"
+      - "homepage.name=Traefik Proxy"
+      - "homepage.icon=traefik"
+      - "homepage.href=https://{{ traefik_acme_domain_main }}"
+      - "homepage.description=Reverse Proxy & Edge Ingress"
+
+
+
+networks:
+  traefik_network:
+    external: true
+    name: {{ traefik_network_name }}

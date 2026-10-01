@@ -1,0 +1,170 @@
+---
+- name: Create Gitea directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ gitea_dir }}"
+    - "{{ gitea_dir }}/data"
+
+- name: Create Gitea runner directories
+  ansible.builtin.file:
+    path: "{{ gitea_dir }}/runner-{{ item }}-data"
+    state: directory
+    mode: '0755'
+  loop: "{{ range(1, (gitea_runner_count | default(4) | int) + 1) | list }}"
+  when: gitea_runner_enabled | default(true)
+  tags: [gitea, runner]
+
+- name: Create Gitea runner DinD directories
+  ansible.builtin.file:
+    path: "{{ gitea_dir }}/runner-{{ item }}-dind-data"
+    state: directory
+    mode: '0755'
+  loop: "{{ range(1, (gitea_runner_count | default(4) | int) + 1) | list }}"
+  when: gitea_runner_enabled | default(true)
+  tags: [gitea, runner]
+
+- name: Check whether AppArmor is enabled on the host
+  ansible.builtin.command: cat /sys/module/apparmor/parameters/enabled
+  register: gitea_apparmor_enabled
+  changed_when: false
+  failed_when: false
+  when:
+    - gitea_runner_enabled | default(true)
+    - gitea_dind_apparmor_profile_enabled | default(true)
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  tags: [gitea, runner]
+
+- name: Install AppArmor profile for rootlesskit
+  ansible.builtin.copy:
+    dest: /etc/apparmor.d/usr.local.bin.rootlesskit
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      abi <abi/4.0>,
+      include <tunables/global>
+
+      # Ubuntu ships kernel.apparmor_restrict_unprivileged_userns=1, which denies
+      # unprivileged user namespace creation with additional namespace flags.
+      # docker:dind-rootless runs rootlesskit as uid 1000 without capabilities, so
+      # without this profile the daemon dies with:
+      #   [rootlesskit:parent] error: failed to start the child: fork/exec /proc/self/exe: operation not permitted
+      /usr/local/bin/rootlesskit flags=(unconfined) {
+        userns,
+
+        # Site-specific additions and overrides. See local/README for details.
+        include if exists <local/usr.local.bin.rootlesskit>
+      }
+  register: gitea_apparmor_profile
+  when:
+    - gitea_apparmor_enabled is not skipped
+    - gitea_apparmor_enabled.stdout | default('') | trim == 'Y'
+  notify:
+    - Reload AppArmor
+    - Restart Gitea
+  tags: [gitea, runner]
+
+- name: Deploy Gitea docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ gitea_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Gitea
+
+- name: Start Gitea container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ gitea_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for Gitea service to be available
+  ansible.builtin.command: >
+    docker exec gitea curl -s -f http://localhost:3000/api/v1/version
+  register: gitea_wait_res
+  until: gitea_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Create Gitea admin user if not existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea admin user create
+    --username {{ gitea_admin_user }}
+    --password {{ gitea_admin_password }}
+    --email {{ gitea_admin_email }}
+    --admin
+    --must-change-password=false
+  register: gitea_create_admin_res
+  failed_when: false
+  changed_when: "'successfully created' in gitea_create_admin_res.stdout"
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Update Gitea admin user password if already existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea admin user change-password
+    --username {{ gitea_admin_user }}
+    --password {{ gitea_admin_password }}
+  register: gitea_change_pass_res
+  failed_when: false
+  changed_when: false
+  when:
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - "'already exists' in gitea_create_admin_res.stderr | default('') or 'already exists' in gitea_create_admin_res.stdout | default('')"
+
+- name: Generate Gitea runner registration token
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea actions generate-runner-token
+  register: gitea_runner_token_cmd
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - gitea_runner_enabled | default(true)
+  tags: [gitea, runner]
+
+- name: Set Gitea runner registration token fact
+  ansible.builtin.set_fact:
+    gitea_runner_registration_token: "{{ gitea_runner_token_cmd.stdout | trim }}"
+  when:
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - gitea_runner_token_cmd is defined
+    - gitea_runner_token_cmd.stdout is defined
+    - gitea_runner_token_cmd.rc | default(1) == 0
+  tags: [gitea, runner]
+
+- name: Re-deploy Gitea docker-compose file with runner token
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ gitea_dir }}/docker-compose.yml"
+    mode: '0644'
+  when:
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - gitea_runner_registration_token is defined
+  tags: [gitea, runner]
+
+- name: Start Gitea runner containers via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ gitea_dir }}"
+    state: present
+  when:
+    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - gitea_runner_enabled | default(true)
+  tags: [gitea, runner]
+
+- name: Register Authentik OIDC authentication source in Gitea
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea admin auth add-oauth
+    --name authentik
+    --provider openidConnect
+    --key {{ authentik_gitea_client_id | default('gitea') }}
+    --secret {{ authentik_gitea_client_secret | default('gitea-secret-key-32-chars-minimum!') }}
+    --auto-discover-url https://{{ authentik_domain | default('authentik.mini.debrutal.dev') }}/application/o/gitea/.well-known/openid-configuration
+  register: gitea_authentik_auth_res
+  failed_when: false
+  changed_when: "'successfully created' in gitea_authentik_auth_res.stdout"
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  tags: [gitea, authentik, sso]

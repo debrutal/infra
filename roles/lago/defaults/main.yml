@@ -1,0 +1,30 @@
+---
+lago_version: "v1.53.0"
+lago_gotenberg_version: "8.15"
+lago_dir: "/opt/lago"
+lago_traefik_network: "traefik-net"
+lago_traefik_certresolver: ""
+lago_traefik_entrypoints: "websecure"
+lago_undeploy: false
+lago_undeploy_volumes: false
+lago_undeploy_remove_dir: true
+lago_domain_front: "lago.mini.debrutal.dev"
+lago_domain_api: "lago-api.mini.debrutal.dev"
+lago_front_url: "https://{{ lago_domain_front }}"
+lago_api_url: "https://{{ lago_domain_api }}"
+lago_postgres_user: "lago"
+lago_postgres_password: "changeme"
+lago_postgres_db: "lago"
+lago_postgres_port: 5432
+lago_redis_port: 6379
+lago_secret_key_base: "secretkeybase0123456789abcdef0123456789abcdef0123456789abcdef01234567"
+lago_rsa_private_key: ""
+lago_encryption_primary_key: "encryptionprimarykey0123456789abcdef"
+lago_encryption_deterministic_key: "encryptiondeterministickey012345"
+lago_encryption_key_derivation_salt: "keyderivationsalt0123456789abc"
+lago_admin_user: "{{ vault_lago_admin_user | default(default_admin_username | default('debrutal')) }}"
+lago_admin_email: "{{ vault_lago_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
+lago_admin_password: "{{ vault_lago_admin_password | default(default_admin_password | default('')) }}"
+
+# OpenTelemetry
+lago_otel_enabled: true

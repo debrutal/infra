@@ -1,0 +1,54 @@
+---
+- name: Check whether Lago docker-compose file exists
+  ansible.builtin.stat:
+    path: "{{ lago_dir }}/docker-compose.yml"
+  register: lago_compose_file
+
+- name: Check whether Lago project is deployed
+  ansible.builtin.command:
+    cmd: docker compose -f "{{ lago_dir }}/docker-compose.yml" ps --quiet
+  register: lago_compose_ps
+  changed_when: false
+  failed_when: false
+  when:
+    - lago_compose_file.stat.exists
+    - ansible_connection != 'docker'
+    - ansible_virtualization_type != 'docker'
+
+- name: Stop and remove Lago containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ lago_dir }}"
+    state: absent
+    remove_volumes: "{{ lago_undeploy_volumes }}"
+    remove_orphans: true
+  when:
+    - lago_compose_file.stat.exists
+    - lago_compose_ps.stdout | default('') | length > 0
+    - ansible_connection != 'docker'
+    - ansible_virtualization_type != 'docker'
+
+- name: Remove Lago named volumes
+  community.docker.docker_volume:
+    name: "{{ item }}"
+    state: absent
+  loop:
+    - lago_postgres_data
+    - lago_redis_data
+    - lago_storage_data
+  when:
+    - lago_undeploy_volumes | bool
+    - lago_compose_ps.stdout | default('') | length > 0
+    - ansible_connection != 'docker'
+    - ansible_virtualization_type != 'docker'
+
+- name: Remove Lago configuration directory
+  ansible.builtin.file:
+    path: "{{ lago_dir }}"
+    state: absent
+  when: lago_undeploy_remove_dir | bool
+
+- name: Report that Lago is undeployed
+  ansible.builtin.debug:
+    msg: >-
+      Lago undeployed from {{ lago_dir }}.
+      Named volumes {{ 'were removed' if lago_undeploy_volumes | bool else 'were kept' }}.

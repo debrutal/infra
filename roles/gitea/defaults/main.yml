@@ -1,0 +1,24 @@
+---
+gitea_dir: "/opt/gitea"
+gitea_version: "1.23"
+gitea_traefik_network: "{{ traefik_network_name }}"
+gitea_traefik_certresolver: ""
+gitea_traefik_entrypoints: "websecure"
+gitea_domain: "gitea.mini.debrutal.dev"
+gitea_site_url: "https://{{ gitea_domain }}"
+gitea_ssh_port: 2222
+gitea_admin_user: "{{ vault_gitea_admin_user | default(default_admin_username | default('debrutal')) }}"
+gitea_admin_password: "{{ vault_gitea_admin_password | default(default_admin_password | default('')) }}"
+gitea_admin_email: "{{ vault_gitea_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
+gitea_runner_enabled: true
+gitea_runner_count: 4
+gitea_runner_version: "latest"
+gitea_dind_version: "dind-rootless"
+# Load an AppArmor profile that lets rootlesskit create user namespaces.
+# Required on Ubuntu >= 24.10 (kernel.apparmor_restrict_unprivileged_userns=1).
+gitea_dind_apparmor_profile_enabled: true
+gitea_docker_api_version: "{{ docker_api_version | default('1.40') }}"
+gitea_webhook_allowed_host_list: "external,loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+
+# OpenTelemetry
+gitea_otel_enabled: true

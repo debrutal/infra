@@ -1,0 +1,37 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: instance
+    image: ubuntu:latest
+    pre_build_image: true
+    command: "sleep infinity"
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      roles_path: ../../roles
+  inventory:
+    hosts:
+      servers:
+        hosts:
+          instance:
+            ansible_user: root
+    group_vars:
+      all:
+        vault_cf_dns_api_token: "dummy-token-for-molecule-tests"
+        traefik_acme_enabled: true
+        traefik_acme_domain_main: "mini.debrutal.dev"
+        traefik_acme_domain_sans:
+          - "*.mini.debrutal.dev"
+        traefik_acme_challenge_type: "dns"
+        traefik_acme_dns_provider: "cloudflare"
+        traefik_acme_dns_resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"
+        traefik_acme_dns_env:
+          CF_DNS_API_TOKEN: "your-cloudflare-api-token-here"
+verifier:
+  name: testinfra

@@ -1,0 +1,11 @@
+---
+uptime_kuma_version: "2.5.5"
+uptime_kuma_dir: "/opt/uptime-kuma"
+uptime_kuma_traefik_network: "traefik-net"
+uptime_kuma_traefik_certresolver: ""
+uptime_kuma_traefik_entrypoints: "websecure"
+uptime_kuma_domain: "status.mini.debrutal.dev"
+uptime_kuma_site_url: "https://{{ uptime_kuma_domain }}"
+uptime_kuma_username: "{{ vault_uptime_kuma_username | default(default_admin_username | default('debrutal')) }}"
+uptime_kuma_password: "{{ vault_uptime_kuma_password | default(default_admin_password | default('')) }}"
+uptime_kuma_email: "{{ vault_uptime_kuma_email | default(default_admin_email | default('duennes@gmail.com')) }}"

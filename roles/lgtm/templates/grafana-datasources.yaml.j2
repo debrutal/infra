@@ -1,0 +1,47 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: true
+    jsonData:
+      httpMethod: GET
+      tracesToLogsV2:
+        datasourceUid: 'loki'
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        tags: ['job', 'instance', 'pod', 'namespace', 'container']
+        filterByTraceID: true
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: 'prometheus'
+        tags: [{ key: 'service.name', value: 'service' }]
+        queries:
+          - name: 'Request rate'
+            query: 'sum(rate(span_metrics_calls_total{% raw %}{${__tags}}{% endraw %}[5m]))'
+          - name: 'Error rate'
+            query: 'sum(rate(span_metrics_calls_total{% raw %}{status_code="STATUS_CODE_ERROR",${__tags}}{% endraw %}[5m]))'
+          - name: 'P95 latency'
+            query: 'histogram_quantile(0.95, sum(rate(span_metrics_duration_milliseconds_bucket{% raw %}{${__tags}}{% endraw %}[5m])) by (le))'
+      serviceMap:
+        datasourceUid: 'prometheus'
+      nodeGraph:
+        enabled: true

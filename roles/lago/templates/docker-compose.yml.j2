@@ -1,0 +1,249 @@
+services:
+  db:
+    image: getlago/postgres-partman:15.0-alpine
+    container_name: lago-db
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U {{ lago_postgres_user }} -d {{ lago_postgres_db }}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_DB: "{{ lago_postgres_db }}"
+      POSTGRES_USER: "{{ lago_postgres_user }}"
+      POSTGRES_PASSWORD: "{{ lago_postgres_password }}"
+      PGDATA: /data/postgres
+      PGPORT: {{ lago_postgres_port }}
+      POSTGRES_SCHEMA: public
+    volumes:
+      - lago_postgres_data:/data/postgres
+
+  redis:
+    image: redis:7-alpine
+    container_name: lago-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "{{ lago_redis_port }}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --port {{ lago_redis_port }}
+    volumes:
+      - lago_redis_data:/data
+
+  migrate:
+    image: getlago/api:{{ lago_version }}
+    container_name: lago-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/migrate.sh"]
+    environment:
+      DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
+      REDIS_URL: "redis://redis:{{ lago_redis_port }}"
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: "{{ lago_secret_key_base }}"
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      LAGO_RSA_PRIVATE_KEY: "{{ lago_rsa_private_key }}"
+      LAGO_SIDEKIQ_WEB: "true"
+      LAGO_ENCRYPTION_PRIMARY_KEY: "{{ lago_encryption_primary_key }}"
+      LAGO_ENCRYPTION_DETERMINISTIC_KEY: "{{ lago_encryption_deterministic_key }}"
+      LAGO_ENCRYPTION_KEY_DERIVATION_SALT: "{{ lago_encryption_key_derivation_salt }}"
+      LAGO_USE_AWS_S3: "false"
+      LAGO_USE_GCS: "false"
+      LAGO_PDF_URL: "http://pdf:3000"
+      LAGO_REDIS_CACHE_URL: "redis://redis:{{ lago_redis_port }}"
+
+  api:
+    image: getlago/api:{{ lago_version }}
+    container_name: lago-api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.api.sh"]
+    healthcheck:
+      test: curl -f http://localhost:3000/health || exit 1
+      interval: 10s
+      start_period: 30s
+      timeout: 60s
+      start_interval: 2s
+    environment:
+      DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
+      REDIS_URL: "redis://redis:{{ lago_redis_port }}"
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: "{{ lago_secret_key_base }}"
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      LAGO_RSA_PRIVATE_KEY: "{{ lago_rsa_private_key }}"
+      LAGO_SIDEKIQ_WEB: "true"
+      LAGO_ENCRYPTION_PRIMARY_KEY: "{{ lago_encryption_primary_key }}"
+      LAGO_ENCRYPTION_DETERMINISTIC_KEY: "{{ lago_encryption_deterministic_key }}"
+      LAGO_ENCRYPTION_KEY_DERIVATION_SALT: "{{ lago_encryption_key_derivation_salt }}"
+      LAGO_USE_AWS_S3: "false"
+      LAGO_USE_GCS: "false"
+      LAGO_PDF_URL: "http://pdf:3000"
+      LAGO_REDIS_CACHE_URL: "redis://redis:{{ lago_redis_port }}"
+      LAGO_API_URL: "{{ lago_api_url }}"
+      LAGO_FRONT_URL: "{{ lago_front_url }}"
+{% if lago_otel_enabled | default(true) %}
+      OTEL_SERVICE_NAME: "lago-api"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "none"
+      OTEL_LOGS_EXPORTER: "none"
+{% endif %}
+    volumes:
+      - lago_storage_data:/app/storage
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lago_api.rule=Host(`{{ lago_domain_api }}`)"
+      - "traefik.http.routers.lago_api.entrypoints={{ lago_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.lago_api.tls=true"
+{% if lago_traefik_certresolver is defined and lago_traefik_certresolver %}
+      - "traefik.http.routers.lago_api.tls.certresolver={{ lago_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.lago_api.loadbalancer.server.port=3000"
+      - "kuma.lago-api.http.name=Lago API"
+      - "kuma.lago-api.http.url=http://lago-api:3000"
+
+  front:
+    image: getlago/front:{{ lago_version }}
+    container_name: lago-front
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    environment:
+      API_URL: "{{ lago_api_url }}"
+      LAGO_DOMAIN: "{{ lago_domain_front }}"
+      LAGO_API_URL: "{{ lago_api_url }}"
+      LAGO_FRONT_URL: "{{ lago_front_url }}"
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lago_front.rule=Host(`{{ lago_domain_front }}`)"
+      - "traefik.http.routers.lago_front.entrypoints={{ lago_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.lago_front.tls=true"
+{% if lago_traefik_certresolver is defined and lago_traefik_certresolver %}
+      - "traefik.http.routers.lago_front.tls.certresolver={{ lago_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if lago_authentik_enabled | default(false) %}
+      - "traefik.http.routers.lago_front.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.lago_front.loadbalancer.server.port=80"
+      - "kuma.lago-front.http.name=Lago Frontend"
+      - "kuma.lago-front.http.url=http://lago-front:80"
+
+
+
+  api-worker:
+    image: getlago/api:{{ lago_version }}
+    container_name: lago-worker
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.worker.sh"]
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      interval: 10s
+      start_period: 30s
+      timeout: 60s
+      start_interval: 2s
+    environment:
+      DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
+      REDIS_URL: "redis://redis:{{ lago_redis_port }}"
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: "{{ lago_secret_key_base }}"
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      LAGO_RSA_PRIVATE_KEY: "{{ lago_rsa_private_key }}"
+      LAGO_SIDEKIQ_WEB: "true"
+      LAGO_ENCRYPTION_PRIMARY_KEY: "{{ lago_encryption_primary_key }}"
+      LAGO_ENCRYPTION_DETERMINISTIC_KEY: "{{ lago_encryption_deterministic_key }}"
+      LAGO_ENCRYPTION_KEY_DERIVATION_SALT: "{{ lago_encryption_key_derivation_salt }}"
+      LAGO_USE_AWS_S3: "false"
+      LAGO_USE_GCS: "false"
+      LAGO_PDF_URL: "http://pdf:3000"
+      LAGO_REDIS_CACHE_URL: "redis://redis:{{ lago_redis_port }}"
+      LAGO_API_URL: "{{ lago_api_url }}"
+    volumes:
+      - lago_storage_data:/app/storage
+
+  api-clock:
+    image: getlago/api:{{ lago_version }}
+    container_name: lago-clock
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.clock.sh"]
+    environment:
+      DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
+      REDIS_URL: "redis://redis:{{ lago_redis_port }}"
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: "{{ lago_secret_key_base }}"
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      LAGO_RSA_PRIVATE_KEY: "{{ lago_rsa_private_key }}"
+      LAGO_SIDEKIQ_WEB: "true"
+      LAGO_ENCRYPTION_PRIMARY_KEY: "{{ lago_encryption_primary_key }}"
+      LAGO_ENCRYPTION_DETERMINISTIC_KEY: "{{ lago_encryption_deterministic_key }}"
+      LAGO_ENCRYPTION_KEY_DERIVATION_SALT: "{{ lago_encryption_key_derivation_salt }}"
+      LAGO_USE_AWS_S3: "false"
+      LAGO_USE_GCS: "false"
+      LAGO_PDF_URL: "http://pdf:3000"
+      LAGO_REDIS_CACHE_URL: "redis://redis:{{ lago_redis_port }}"
+      LAGO_API_URL: "{{ lago_api_url }}"
+
+  pdf:
+    image: getlago/lago-gotenberg:{{ lago_gotenberg_version | default('8.15') }}
+    container_name: lago-pdf
+    restart: unless-stopped
+
+volumes:
+  lago_postgres_data:
+  lago_redis_data:
+  lago_storage_data:
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ lago_traefik_network }}

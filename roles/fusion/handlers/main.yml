@@ -1,0 +1,11 @@
+---
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Restart Fusion service
+  ansible.builtin.systemd:
+    name: "{{ fusion_service_name }}"
+    state: restarted
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

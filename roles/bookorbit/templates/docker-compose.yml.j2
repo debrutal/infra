@@ -1,0 +1,89 @@
+services:
+  bookorbit-app:
+    image: ghcr.io/bookorbit/bookorbit:{{ bookorbit_version }}
+    container_name: bookorbit-app
+    restart: always
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "{{ bookorbit_port }}"
+      POSTGRES_HOST: bookorbit-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "{{ bookorbit_db_user }}"
+      POSTGRES_PASSWORD: "{{ bookorbit_db_password }}"
+      POSTGRES_DB: "{{ bookorbit_db_name }}"
+      JWT_SECRET: "{{ bookorbit_jwt_secret }}"
+      SETUP_BOOTSTRAP_TOKEN: "{{ bookorbit_setup_bootstrap_token }}"
+      APP_URL: "{{ bookorbit_site_url }}"
+      CLIENT_URL: "{{ bookorbit_site_url }}"
+      TZ: "{{ bookorbit_timezone }}"
+      PUID: "{{ bookorbit_puid }}"
+      PGID: "{{ bookorbit_pgid }}"
+{% if bookorbit_authentik_enabled | default(true) %}
+      OIDC_ALLOW_LOCAL_ISSUERS: "true"
+{% endif %}
+    depends_on:
+      bookorbit-db:
+        condition: service_healthy
+    volumes:
+      - {{ bookorbit_books_path }}:/books
+      - {{ bookorbit_dir }}/data/app:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bookorbit.rule=Host(`{{ bookorbit_domain }}`)"
+      - "traefik.http.routers.bookorbit.entrypoints={{ bookorbit_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.bookorbit.tls=true"
+{% if bookorbit_traefik_certresolver is defined and bookorbit_traefik_certresolver %}
+      - "traefik.http.routers.bookorbit.tls.certresolver={{ bookorbit_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.bookorbit.loadbalancer.server.port={{ bookorbit_port }}"
+      - "kuma.bookorbit.http.name=BookOrbit"
+      - "kuma.bookorbit.http.url=http://bookorbit-app:{{ bookorbit_port }}"
+      - "homepage.group=Media & Knowledge"
+      - "homepage.name=BookOrbit"
+      - "homepage.icon=bookorbit"
+      - "homepage.href={{ bookorbit_site_url }}"
+      - "homepage.description=Self-Hosted Library & Reading Platform"
+
+  bookorbit-db:
+    image: pgvector/pgvector:pg18
+    container_name: bookorbit-db
+    restart: always
+    environment:
+      POSTGRES_USER: "{{ bookorbit_db_user }}"
+      POSTGRES_PASSWORD: "{{ bookorbit_db_password }}"
+      POSTGRES_DB: "{{ bookorbit_db_name }}"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - {{ bookorbit_dir }}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ bookorbit_traefik_network }}

@@ -1,0 +1,48 @@
+---
+- name: Create BookOrbit directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - "{{ bookorbit_dir }}"
+    - "{{ bookorbit_dir }}/data"
+    - "{{ bookorbit_dir }}/data/postgres"
+
+- name: Ensure BookOrbit writable volumes are owned by the app user
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ bookorbit_puid }}"
+    group: "{{ bookorbit_pgid }}"
+    recurse: true
+  loop:
+    - "{{ bookorbit_books_path }}"
+    - "{{ bookorbit_dir }}/data/app"
+
+- name: Deploy BookOrbit docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ bookorbit_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart BookOrbit
+
+- name: Start BookOrbit containers via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ bookorbit_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+
+- name: Wait for BookOrbit service to be available
+  ansible.builtin.command: >
+    docker exec bookorbit-app node -v
+  register: bookorbit_wait_res
+  until: bookorbit_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'

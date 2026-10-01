@@ -1,0 +1,159 @@
+services:
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: loki
+    user: "0:0"
+    restart: unless-stopped
+
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/tmp/loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`{{ lgtm_loki_domain }}`)"
+      - "traefik.http.routers.loki.entrypoints={{ lgtm_traefik_entrypoints }}"
+      - "traefik.http.routers.loki.tls=true"
+{% if lgtm_traefik_certresolver | default('') != '' %}
+      - "traefik.http.routers.loki.tls.certresolver={{ lgtm_traefik_certresolver }}"
+{% endif %}
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on:
+      - loki
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`{{ lgtm_prometheus_domain }}`)"
+      - "traefik.http.routers.prometheus.entrypoints={{ lgtm_traefik_entrypoints }}"
+      - "traefik.http.routers.prometheus.tls=true"
+{% if lgtm_traefik_certresolver | default('') != '' %}
+      - "traefik.http.routers.prometheus.tls.certresolver={{ lgtm_traefik_certresolver }}"
+{% endif %}
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: tempo
+    restart: unless-stopped
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo-data:/var/tempo
+    command: -config.file=/etc/tempo/tempo-config.yaml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tempo.rule=Host(`{{ lgtm_tempo_domain }}`)"
+      - "traefik.http.routers.tempo.entrypoints={{ lgtm_traefik_entrypoints }}"
+      - "traefik.http.routers.tempo.tls=true"
+{% if lgtm_traefik_certresolver | default('') != '' %}
+      - "traefik.http.routers.tempo.tls.certresolver={{ lgtm_traefik_certresolver }}"
+{% endif %}
+      - "traefik.http.services.tempo.loadbalancer.server.port=3200"
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:{{ lgtm_otel_collector_version }}
+    container_name: otel-collector
+    restart: unless-stopped
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    command: --config=/etc/otelcol-contrib/config.yaml
+    depends_on:
+      - tempo
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:{{ lgtm_cadvisor_version }}
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    networks:
+      - {{ lgtm_traefik_network }}
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: "{{ lgtm_grafana_admin_username }}"
+      GF_SECURITY_ADMIN_PASSWORD: "{{ lgtm_grafana_admin_password }}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "{{ lgtm_site_url }}"
+{% if lgtm_authentik_enabled | default(true) %}
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: "Authentik"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "{{ lgtm_authentik_client_id }}"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "{{ lgtm_authentik_client_secret }}"
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email"
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://{{ lgtm_authentik_domain }}/application/o/authorize/"
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "http://authentik-server:9000/application/o/token/"
+      GF_AUTH_GENERIC_OAUTH_API_URL: "http://authentik-server:9000/application/o/userinfo/"
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Editor'"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+{% endif %}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`{{ lgtm_domain }}`)"
+      - "traefik.http.routers.grafana.entrypoints={{ lgtm_traefik_entrypoints }}"
+      - "traefik.http.routers.grafana.tls=true"
+{% if lgtm_traefik_certresolver | default('') != '' %}
+      - "traefik.http.routers.grafana.tls.certresolver={{ lgtm_traefik_certresolver }}"
+{% endif %}
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+    depends_on:
+      - loki
+      - prometheus
+      - tempo
+    networks:
+      - {{ lgtm_traefik_network }}
+
+networks:
+  {{ lgtm_traefik_network }}:
+    external: true
+
+volumes:
+  loki-data:
+  prometheus-data:
+  tempo-data:
+  grafana-data:

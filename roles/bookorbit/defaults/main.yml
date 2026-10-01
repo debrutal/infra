@@ -1,0 +1,30 @@
+---
+bookorbit_dir: "/opt/bookorbit"
+bookorbit_version: "latest"
+bookorbit_traefik_network: "{{ traefik_network_name }}"
+bookorbit_traefik_certresolver: ""
+bookorbit_traefik_entrypoints: "websecure"
+bookorbit_domain: "bookorbit.mini.debrutal.dev"
+bookorbit_site_url: "https://{{ bookorbit_domain }}"
+bookorbit_port: 3000
+
+# PostgreSQL
+bookorbit_db_user: "bookorbit"
+bookorbit_db_password: "{{ vault_bookorbit_db_password | default('changeme_bookorbit_db') }}"
+bookorbit_db_name: "bookorbit"
+
+# Application secrets
+bookorbit_jwt_secret: "{{ vault_bookorbit_jwt_secret | default('changeme-bookorbit-jwt-secret-32-chars!') }}"
+bookorbit_setup_bootstrap_token: "{{ vault_bookorbit_bootstrap_token | default('changeme-bookorbit-bootstrap-token!') }}"
+
+# Optional
+bookorbit_timezone: "Europe/Berlin"
+bookorbit_puid: 1000
+bookorbit_pgid: 1000
+bookorbit_books_path: "{{ bookorbit_dir }}/books"
+
+# Authentik OIDC / SSO
+bookorbit_authentik_enabled: true
+bookorbit_authentik_domain: "{{ authentik_domain | default('authentik.mini.debrutal.dev') }}"
+bookorbit_authentik_client_id: "{{ authentik_bookorbit_client_id | default('bookorbit') }}"
+bookorbit_authentik_client_secret: "{{ authentik_bookorbit_client_secret | default('bookorbit-secret-key-32-chars-minimum!') }}"

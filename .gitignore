@@ -1,0 +1,44 @@
+# Python virtual environments & bytecode
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ansible artifacts
+*.retry
+.ansible/
+*.log
+
+# Secret password files
+.vault_pass*
+.become_pass*
+.vault-pass*
+.become-pass*
+
+# Molecule ephemeral files
+.molecule/
+molecule/*/.cache/
+
+# mdbook compiled HTML output
+docs_book/book/
+
+# Test temporary generated inventory
+tests/inventory.ini
+
+# OS & Editor temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

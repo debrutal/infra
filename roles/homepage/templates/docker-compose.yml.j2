@@ -1,0 +1,40 @@
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:{{ homepage_version }}
+    container_name: homepage
+    restart: always
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "{{ homepage_allowed_hosts }}"
+    volumes:
+      - {{ homepage_dir }}/config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homepage.rule=Host(`{{ homepage_domain }}`) || Host(`dashboard.mini.debrutal.dev`)"
+      - "traefik.http.routers.homepage.entrypoints={{ homepage_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.homepage.tls=true"
+{% if homepage_traefik_certresolver is defined and homepage_traefik_certresolver %}
+      - "traefik.http.routers.homepage.tls.certresolver={{ homepage_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if homepage_authentik_enabled | default(true) %}
+      - "traefik.http.routers.homepage.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+      - "kuma.homepage.http.name=Homepage Dashboard"
+      - "kuma.homepage.http.url=http://homepage:3000"
+      - "homepage.group=Infrastructure"
+      - "homepage.name=Homepage Dashboard"
+      - "homepage.icon=homepage"
+      - "homepage.href={{ homepage_site_url }}"
+      - "homepage.description=Central Infrastructure Dashboard"
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ homepage_traefik_network }}

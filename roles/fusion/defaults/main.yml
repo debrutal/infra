@@ -1,0 +1,16 @@
+---
+fusion_service_name: "fusion"
+fusion_service_enabled: true
+fusion_service_state: "started"
+fusion_bin_path: "/usr/local/bin/fusion"
+fusion_exec_start: "/usr/local/bin/fusion"
+fusion_working_dir: "/opt/fusion"
+fusion_user: "root"
+fusion_group: "root"
+fusion_port: 4040
+fusion_environment_vars: {}
+fusion_force_restart: false
+
+# OpenTelemetry
+fusion_otel_enabled: true
+fusion_otel_endpoint: "http://localhost:4317"

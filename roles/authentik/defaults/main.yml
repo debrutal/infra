@@ -1,0 +1,26 @@
+---
+authentik_dir: "/opt/authentik"
+authentik_version: "2024.12.3"
+authentik_traefik_network: "{{ traefik_network_name }}"
+authentik_traefik_certresolver: ""
+authentik_traefik_entrypoints: "websecure"
+authentik_domain: "authentik.mini.debrutal.dev"
+authentik_site_url: "https://{{ authentik_domain }}"
+authentik_postgres_user: "authentik"
+authentik_postgres_password: "{{ vault_authentik_db_password | default('authentik_db_secret_pass') }}"
+authentik_postgres_db: "authentik"
+authentik_secret_key: "{{ vault_authentik_secret_key | default('change-me-authentik-secret-key-32-chars-minimum!') }}"
+authentik_admin_username: "{{ vault_authentik_admin_username | default(default_admin_username | default('debrutal')) }}"
+authentik_admin_email: "{{ vault_authentik_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
+authentik_admin_password: "{{ vault_authentik_admin_password | default(default_admin_password | default('')) }}"
+
+# Integrated Apps OIDC / OAuth2 Defaults
+authentik_gitea_client_id: "gitea"
+authentik_gitea_client_secret: "{{ vault_gitea_authentik_secret | default('gitea-secret-key-32-chars-minimum!') }}"
+authentik_grafana_client_id: "grafana"
+authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
+authentik_bookorbit_client_id: "bookorbit"
+authentik_bookorbit_client_secret: "{{ vault_bookorbit_authentik_secret | default('bookorbit-secret-key-32-chars-minimum!') }}"
+
+# OpenTelemetry / Metrics
+authentik_otel_enabled: true

@@ -1,0 +1,209 @@
+---
+# Common configuration
+default_admin_username: "debrutal"
+default_admin_email: "duennes@gmail.com"
+default_admin_password: "{{ vault_default_admin_password | default('') }}"
+
+common_packages:
+  - git
+  - jq
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - tar
+  - unzip
+
+# Neovim configuration
+neovim_version: "latest" # options: "latest" or specific version like "v0.10.4"
+neovim_install_dir: "/opt/nvim"
+neovim_bin_symlink: "/usr/local/bin/nvim"
+
+# Docker configuration
+docker_users:
+  - debrutal
+  - "{{ ansible_user }}"
+docker_api_version: "1.40"
+
+# Traefik configuration
+traefik_version: "v3.7.13"
+traefik_dir: "/opt/traefik"
+traefik_network_name: "traefik-net"
+traefik_http_port: 80
+traefik_https_port: 443
+traefik_dashboard_port: 8080
+traefik_enable_dashboard: true
+traefik_dashboard_insecure: true
+traefik_log_level: "INFO"
+traefik_acme_email: "admin@debrutal.dev"
+traefik_acme_enabled: true
+traefik_acme_domain_main: "mini.debrutal.dev"
+traefik_acme_domain_sans:
+  - "*.mini.debrutal.dev"
+traefik_alias_headers_strategy: "delete"
+traefik_encoded_characters_allow_slash: false
+traefik_encoded_characters_allow_backslash: false
+traefik_encoded_characters_allow_hash: false
+traefik_encoded_characters_allow_null: false
+traefik_encoded_characters_allow_percent: false
+traefik_encoded_characters_allow_questionmark: false
+traefik_encoded_characters_allow_semicolon: false
+traefik_acme_challenge_type: "dns"
+traefik_acme_dns_provider: "cloudflare"
+traefik_acme_dns_resolvers:
+  - "1.1.1.1:53"
+  - "1.0.0.1:53"
+traefik_acme_dns_env:
+  CF_DNS_API_TOKEN: "{{ vault_cf_dns_api_token | default('') }}"
+  CLOUDFLARE_DNS_API_TOKEN: "{{ vault_cf_dns_api_token | default('') }}"
+  CF_ZONE_API_TOKEN: "{{ vault_cf_zone_api_token | default(vault_cf_dns_api_token | default('')) }}"
+  CLOUDFLARE_ZONE_API_TOKEN: "{{ vault_cf_zone_api_token | default(vault_cf_dns_api_token | default('')) }}"
+traefik_fusion_enabled: true
+traefik_fusion_domain: "fusion.mini.debrutal.dev"
+traefik_fusion_target_port: 4040
+fusion_domain: "fusion.mini.debrutal.dev"
+fusion_target_port: 4040
+fusion_site_url: "https://{{ fusion_domain }}"
+fusion_service_name: "fusion"
+fusion_service_enabled: true
+fusion_service_state: "started"
+fusion_bin_path: "/usr/local/bin/fusion"
+fusion_exec_start: "/usr/local/bin/fusion"
+fusion_working_dir: "/opt/fusion"
+fusion_user: "root"
+fusion_group: "root"
+
+# Lago configuration
+lago_dir: "/opt/lago"
+lago_version: "v1.53.0"
+lago_gotenberg_version: "8.15"
+lago_traefik_network: "{{ traefik_network_name }}"
+lago_traefik_certresolver: ""
+lago_traefik_entrypoints: "websecure"
+lago_domain_front: "lago.mini.debrutal.dev"
+lago_domain_api: "lago-api.mini.debrutal.dev"
+lago_front_url: "https://{{ lago_domain_front }}"
+lago_api_url: "https://{{ lago_domain_api }}"
+
+# Invoice Ninja configuration
+invoiceninja_dir: "/opt/invoiceninja"
+invoiceninja_version: "5.13.43"
+invoiceninja_traefik_network: "{{ traefik_network_name }}"
+invoiceninja_traefik_certresolver: ""
+invoiceninja_traefik_entrypoints: "websecure"
+invoiceninja_domain: "invoiceninja.mini.debrutal.dev"
+invoiceninja_app_url: "https://{{ invoiceninja_domain }}"
+
+# EspoCRM configuration
+espocrm_dir: "/opt/espocrm"
+espocrm_version: "10.0.8"
+espocrm_traefik_network: "{{ traefik_network_name }}"
+espocrm_traefik_certresolver: ""
+espocrm_traefik_entrypoints: "websecure"
+espocrm_domain: "espocrm.mini.debrutal.dev"
+espocrm_site_url: "https://{{ espocrm_domain }}"
+
+# Uptime Kuma configuration
+uptime_kuma_dir: "/opt/uptime-kuma"
+uptime_kuma_version: "2.5.5"
+uptime_kuma_traefik_network: "{{ traefik_network_name }}"
+uptime_kuma_traefik_certresolver: ""
+uptime_kuma_traefik_entrypoints: "websecure"
+uptime_kuma_domain: "status.mini.debrutal.dev"
+uptime_kuma_site_url: "https://{{ uptime_kuma_domain }}"
+uptime_kuma_status_slug: "default"
+uptime_kuma_username: "debrutal"
+uptime_kuma_password: "{{ vault_uptime_kuma_password | default(default_admin_password) }}"
+
+
+# Sentry (GlitchTip) configuration
+sentry_dir: "/opt/sentry"
+sentry_version: "6.2.6"
+sentry_traefik_network: "{{ traefik_network_name }}"
+sentry_traefik_certresolver: ""
+sentry_traefik_entrypoints: "websecure"
+sentry_domain: "sentry.mini.debrutal.dev"
+sentry_site_url: "https://{{ sentry_domain }}"
+
+# Homepage configuration
+homepage_dir: "/opt/homepage"
+homepage_version: "v2.4.0"
+homepage_traefik_network: "{{ traefik_network_name }}"
+homepage_traefik_certresolver: ""
+homepage_traefik_entrypoints: "websecure"
+homepage_domain: "dash.mini.debrutal.dev"
+homepage_site_url: "https://{{ homepage_domain }}"
+homepage_uptime_kuma_url: "http://uptime-kuma:3001"
+homepage_uptime_kuma_slug: "{{ uptime_kuma_status_slug }}"
+homepage_allowed_hosts: "{{ [
+  homepage_domain,
+  homepage_domain ~ ':443',
+  homepage_domain ~ ':80',
+  'dashboard.mini.debrutal.dev',
+  'dashboard.mini.debrutal.dev:443',
+  'dashboard.mini.debrutal.dev:80',
+  'localhost',
+  '127.0.0.1'
+] | join(',') }}"
+# Gitea configuration
+gitea_dir: "/opt/gitea"
+gitea_version: "1.23"
+gitea_traefik_network: "{{ traefik_network_name }}"
+gitea_traefik_certresolver: ""
+gitea_traefik_entrypoints: "websecure"
+gitea_domain: "gitea.mini.debrutal.dev"
+gitea_site_url: "https://{{ gitea_domain }}"
+gitea_ssh_port: 2222
+gitea_runner_enabled: true
+gitea_runner_count: 4
+gitea_runner_version: "latest"
+gitea_dind_version: "dind-rootless"
+
+# Authentik (SSO / Identity Provider) configuration
+authentik_dir: "/opt/authentik"
+authentik_version: "2024.12.3"
+authentik_traefik_network: "{{ traefik_network_name }}"
+authentik_traefik_certresolver: ""
+authentik_traefik_entrypoints: "websecure"
+authentik_domain: "authentik.mini.debrutal.dev"
+authentik_site_url: "https://{{ authentik_domain }}"
+authentik_secret_key: "{{ vault_authentik_secret_key | default('change-me-authentik-secret-key-32-chars-minimum!') }}"
+authentik_postgres_user: "authentik"
+authentik_postgres_password: "{{ vault_authentik_db_password | default('authentik_db_secret_pass') }}"
+authentik_postgres_db: "authentik"
+authentik_admin_username: "{{ vault_authentik_admin_username | default(default_admin_username) }}"
+authentik_admin_email: "{{ vault_authentik_admin_email | default(default_admin_email) }}"
+authentik_admin_password: "{{ vault_authentik_admin_password | default(default_admin_password) }}"
+authentik_grafana_client_id: "grafana"
+authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
+authentik_bookorbit_client_id: "bookorbit"
+authentik_bookorbit_client_secret: "{{ vault_bookorbit_authentik_secret | default('bookorbit-secret-key-32-chars-minimum!') }}"
+
+# LGTM Stack (Loki, Grafana, Tempo, Prometheus) configuration
+lgtm_dir: "/opt/lgtm"
+lgtm_version: "latest"
+lgtm_traefik_network: "{{ traefik_network_name }}"
+lgtm_traefik_certresolver: ""
+lgtm_traefik_entrypoints: "websecure"
+lgtm_domain: "grafana.mini.debrutal.dev"
+lgtm_prometheus_domain: "prometheus.mini.debrutal.dev"
+lgtm_loki_domain: "loki.mini.debrutal.dev"
+lgtm_tempo_domain: "tempo.mini.debrutal.dev"
+lgtm_site_url: "https://{{ lgtm_domain }}"
+lgtm_grafana_admin_username: "{{ vault_lgtm_admin_username | default(default_admin_username) }}"
+lgtm_grafana_admin_password: "{{ vault_lgtm_admin_password | default(default_admin_password) }}"
+
+# BookOrbit configuration
+bookorbit_dir: "/opt/bookorbit"
+bookorbit_version: "latest"
+bookorbit_traefik_network: "{{ traefik_network_name }}"
+bookorbit_traefik_certresolver: ""
+bookorbit_traefik_entrypoints: "websecure"
+bookorbit_domain: "bookorbit.mini.debrutal.dev"
+bookorbit_site_url: "https://{{ bookorbit_domain }}"
+bookorbit_db_user: "bookorbit"
+bookorbit_db_password: "{{ vault_bookorbit_db_password | default('changeme_bookorbit_db') }}"
+bookorbit_db_name: "bookorbit"
+bookorbit_jwt_secret: "{{ vault_bookorbit_jwt_secret | default('changeme-bookorbit-jwt-secret-32-chars!') }}"
+bookorbit_setup_bootstrap_token: "{{ vault_bookorbit_bootstrap_token | default('changeme-bookorbit-bootstrap-token!') }}"
