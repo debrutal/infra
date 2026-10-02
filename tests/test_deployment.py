@@ -157,6 +157,14 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("dind-rootless", res_compose.stdout)
         self.assertIn("DOCKER_HOST=tcp://gitea-runner-dind-", res_compose.stdout)
 
+        # Verify gitea-mcp service
+        self.assertIn("gitea-mcp:", res_compose.stdout)
+        self.assertIn("docker.gitea.com/gitea-mcp-server", res_compose.stdout)
+        self.assertIn("gitea-mcp.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("MCP_MODE=http", res_compose.stdout)
+        self.assertIn("GITEA_HOST=http://gitea:3000", res_compose.stdout)
+
+
     def test_10_homepage_installation(self):
         """Verify Homepage containerized directory and docker-compose.yml configuration."""
         res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/homepage"], capture_output=True)

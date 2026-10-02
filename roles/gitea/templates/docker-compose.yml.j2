@@ -14,7 +14,8 @@ services:
       - GITEA__service__DISABLE_REGISTRATION=false
       - GITEA__actions__ENABLED=true
       - GITEA__packages__ENABLED=true
-      - GITEA__webhook__ALLOWED_HOST_LIST={{ gitea_webhook_allowed_host_list }}
+      - GITEA__security__EGRESS_MODE={{ gitea_security_egress_mode | default('lax') }}
+      - GITEA__security__ALLOWED_HOST_LIST={{ gitea_security_allowed_host_list | default('loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8') }}
 {% if gitea_otel_enabled | default(true) %}
       - GITEA__opentelemetry__ENABLED=true
       - GITEA__opentelemetry__EXPORTER=otlp
@@ -50,6 +51,51 @@ services:
       - "homepage.icon=gitea"
       - "homepage.href={{ gitea_site_url }}"
       - "homepage.description=Self-Hosted Git Service"
+
+{% if gitea_mcp_enabled | default(true) %}
+  gitea-mcp:
+    image: {{ gitea_mcp_image | default('docker.gitea.com/gitea-mcp-server:latest') }}
+    container_name: gitea-mcp
+    restart: always
+    environment:
+      - MCP_MODE=http
+      - GITEA_HOST=http://gitea:3000
+      - GITEA_ACCESS_TOKEN={{ gitea_mcp_access_token }}
+{% if gitea_mcp_readonly | default(false) %}
+      - GITEA_READONLY=true
+{% endif %}
+    healthcheck:
+      test: ["CMD", "/app/gitea-mcp", "-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      - gitea
+
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea-mcp.rule=Host(`{{ gitea_mcp_domain }}`)"
+      - "traefik.http.routers.gitea-mcp.entrypoints={{ gitea_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.gitea-mcp.tls=true"
+{% if gitea_traefik_certresolver is defined and gitea_traefik_certresolver %}
+      - "traefik.http.routers.gitea-mcp.tls.certresolver={{ gitea_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.gitea-mcp.loadbalancer.server.port={{ gitea_mcp_port | default(8080) }}"
+      - "kuma.gitea-mcp.http.name=Gitea MCP"
+      - "kuma.gitea-mcp.http.url=http://gitea-mcp:8080/healthz"
+      - "homepage.group=Development & CI"
+      - "homepage.name=Gitea MCP"
+      - "homepage.icon=gitea"
+      - "homepage.href={{ gitea_mcp_site_url }}"
+      - "homepage.description=Gitea MCP Server"
+{% endif %}
+
 
 {% if gitea_runner_enabled | default(true) %}
 {% for i in range(1, (gitea_runner_count | default(4) | int) + 1) %}

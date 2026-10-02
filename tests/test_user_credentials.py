@@ -36,6 +36,25 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             content = f.read()
         self.assertIn("vault_gitea_admin_user | default(default_admin_username", content)
         self.assertIn("vault_gitea_admin_email | default(default_admin_email", content)
+        self.assertIn('gitea_version: "28"', content)
+        self.assertEqual(str(self.all_vars.get("gitea_version")), "28")
+        self.assertIn('gitea_security_egress_mode: "lax"', content)
+        self.assertIn("gitea_security_allowed_host_list:", content)
+        self.assertNotIn("gitea_webhook_allowed_host_list:", content)
+
+    def test_gitea_mcp_credentials(self):
+        """Verify Gitea MCP server token and configuration."""
+        gitea_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "gitea", "defaults", "main.yml")
+        with open(gitea_defaults_path, "r") as f:
+            content = f.read()
+        self.assertIn("gitea_mcp_enabled: true", content)
+        self.assertIn("vault_gitea_mcp_access_token", content)
+        self.assertEqual(self.all_vars.get("gitea_mcp_enabled"), True)
+        self.assertIn("vault_gitea_mcp_access_token", str(self.all_vars.get("gitea_mcp_access_token", "")))
+        with open(os.path.join(WORKSPACE_DIR, "inventory", "group_vars", "all", "vault.yml"), "r") as f:
+            vault_content = f.read()
+        self.assertIn("vault_gitea_mcp_access_token:", vault_content)
+
 
     def test_espocrm_defaults(self):
         """Verify EspoCRM default admin configuration."""

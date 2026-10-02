@@ -26,7 +26,9 @@ SUBDOMAINS = [
     "status.mini.debrutal.dev",
     "sentry.mini.debrutal.dev",
     "gitea.mini.debrutal.dev",
+    "gitea-mcp.mini.debrutal.dev",
     "authentik.mini.debrutal.dev",
+
     "fusion.mini.debrutal.dev",
 ]
 
@@ -42,7 +44,14 @@ def check_domain(domain):
         resolved_ip = socket.gethostbyname(domain)
         dns_ok = True
     except Exception as e:
-        resolved_ip = f"DNS Error: {e}"
+        res_dig = subprocess.run(["dig", "@1.1.1.1", domain, "+short"], capture_output=True, text=True)
+        ips = [line.strip() for line in res_dig.stdout.splitlines() if line.strip() and not line.startswith(";")]
+        if ips and res_dig.returncode == 0:
+            resolved_ip = ips[0]
+            dns_ok = True
+        else:
+            resolved_ip = f"DNS Error: {e}"
+
 
     # Inspect SSL Cert with -k
     cmd_inspect = [

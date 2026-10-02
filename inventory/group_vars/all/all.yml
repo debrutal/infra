@@ -150,7 +150,7 @@ homepage_allowed_hosts: "{{ [
 ] | join(',') }}"
 # Gitea configuration
 gitea_dir: "/opt/gitea"
-gitea_version: "1.23"
+gitea_version: "28"
 gitea_traefik_network: "{{ traefik_network_name }}"
 gitea_traefik_certresolver: ""
 gitea_traefik_entrypoints: "websecure"
@@ -161,6 +161,16 @@ gitea_runner_enabled: true
 gitea_runner_count: 4
 gitea_runner_version: "latest"
 gitea_dind_version: "dind-rootless"
+
+# Gitea MCP configuration
+gitea_mcp_enabled: true
+gitea_mcp_image: "docker.gitea.com/gitea-mcp-server:latest"
+gitea_mcp_domain: "gitea-mcp.mini.debrutal.dev"
+gitea_mcp_site_url: "https://{{ gitea_mcp_domain }}"
+gitea_mcp_port: 8080
+gitea_mcp_access_token: "{{ vault_gitea_mcp_access_token | default('') }}"
+gitea_mcp_readonly: false
+
 
 # Authentik (SSO / Identity Provider) configuration
 authentik_dir: "/opt/authentik"

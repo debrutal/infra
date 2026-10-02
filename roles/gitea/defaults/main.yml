@@ -1,6 +1,6 @@
 ---
 gitea_dir: "/opt/gitea"
-gitea_version: "1.23"
+gitea_version: "28"
 gitea_traefik_network: "{{ traefik_network_name }}"
 gitea_traefik_certresolver: ""
 gitea_traefik_entrypoints: "websecure"
@@ -18,7 +18,18 @@ gitea_dind_version: "dind-rootless"
 # Required on Ubuntu >= 24.10 (kernel.apparmor_restrict_unprivileged_userns=1).
 gitea_dind_apparmor_profile_enabled: true
 gitea_docker_api_version: "{{ docker_api_version | default('1.40') }}"
-gitea_webhook_allowed_host_list: "external,loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+# Gitea Security & Egress configuration (replaces deprecated [webhook].ALLOWED_HOST_LIST in Gitea 28)
+gitea_security_egress_mode: "lax"
+gitea_security_allowed_host_list: "loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
 
 # OpenTelemetry
 gitea_otel_enabled: true
+
+# Gitea MCP Server configuration
+gitea_mcp_enabled: true
+gitea_mcp_image: "docker.gitea.com/gitea-mcp-server:latest"
+gitea_mcp_domain: "gitea-mcp.mini.debrutal.dev"
+gitea_mcp_site_url: "https://{{ gitea_mcp_domain }}"
+gitea_mcp_port: 8080
+gitea_mcp_access_token: "{{ vault_gitea_mcp_access_token | default('') }}"
+gitea_mcp_readonly: false

@@ -57,6 +57,14 @@
         href: "{{ gitea_site_url | default('https://gitea.mini.debrutal.dev') }}"
         description: Self-Hosted Git Service
         container: gitea
+{% if gitea_mcp_enabled | default(true) %}
+    - Gitea MCP:
+        icon: gitea
+        href: "{{ gitea_mcp_site_url | default('https://gitea-mcp.mini.debrutal.dev') }}"
+        description: Gitea Model Context Protocol Server
+        container: gitea-mcp
+{% endif %}
+
 
 
 - Media & Knowledge:

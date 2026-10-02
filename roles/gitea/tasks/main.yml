@@ -67,6 +67,41 @@
     - Restart Gitea
   tags: [gitea, runner]
 
+- name: Check whether Gitea app.ini exists
+  ansible.builtin.stat:
+    path: "{{ gitea_dir }}/data/gitea/conf/app.ini"
+  register: gitea_app_ini_stat
+
+- name: Remove deprecated ALLOWED_HOST_LIST from [webhook] in Gitea app.ini
+  community.general.ini_file:
+    path: "{{ gitea_dir }}/data/gitea/conf/app.ini"
+    section: webhook
+    option: ALLOWED_HOST_LIST
+    state: absent
+    mode: '0644'
+  when: gitea_app_ini_stat.stat.exists | default(false)
+  notify: Restart Gitea
+
+- name: Configure EGRESS_MODE in [security] in Gitea app.ini
+  community.general.ini_file:
+    path: "{{ gitea_dir }}/data/gitea/conf/app.ini"
+    section: security
+    option: EGRESS_MODE
+    value: "{{ gitea_security_egress_mode | default('lax') }}"
+    mode: '0644'
+  when: gitea_app_ini_stat.stat.exists | default(false)
+  notify: Restart Gitea
+
+- name: Configure ALLOWED_HOST_LIST in [security] in Gitea app.ini
+  community.general.ini_file:
+    path: "{{ gitea_dir }}/data/gitea/conf/app.ini"
+    section: security
+    option: ALLOWED_HOST_LIST
+    value: "{{ gitea_security_allowed_host_list | default('loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8') }}"
+    mode: '0644'
+  when: gitea_app_ini_stat.stat.exists | default(false)
+  notify: Restart Gitea
+
 - name: Deploy Gitea docker-compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2
