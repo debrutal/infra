@@ -1,0 +1,98 @@
+---
+- name: Ensure containers configuration directory exists
+  ansible.builtin.file:
+    path: /etc/containers
+    state: directory
+    mode: '0755'
+
+- name: Deploy containers configuration file
+  ansible.builtin.template:
+    src: containers.conf.j2
+    dest: /etc/containers/containers.conf
+    mode: '0644'
+  notify: Restart podman service
+
+- name: Silence podman docker emulation notice
+  ansible.builtin.file:
+    path: /etc/containers/nodocker
+    state: touch
+    mode: '0644'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Deploy registries configuration file
+  ansible.builtin.template:
+    src: registries.conf.j2
+    dest: /etc/containers/registries.conf
+    mode: '0644'
+
+- name: Remove conflicting docker-compose-plugin package if present
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: absent
+
+- name: Install Podman and container runtime packages
+  ansible.builtin.apt:
+    name: "{{ podman_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure podman.socket is enabled and started
+  ansible.builtin.systemd:
+    name: podman.socket
+    enabled: true
+    state: started
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Ensure Docker service and socket are stopped and disabled
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop:
+    - docker.socket
+    - docker.service
+  failed_when: false
+  when:
+    - podman_link_docker_sock
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Remove stale /var/run/docker.sock if regular file or unix socket
+  ansible.builtin.file:
+    path: /var/run/docker.sock
+    state: absent
+  when:
+    - podman_link_docker_sock
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Link /var/run/docker.sock to /run/podman/podman.sock
+  ansible.builtin.file:
+    src: /run/podman/podman.sock
+    dest: /var/run/docker.sock
+    state: link
+    force: true
+  when:
+    - podman_link_docker_sock
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Ensure docker group exists for socket compatibility
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Add user(s) to docker group for socket access
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ podman_users }}"
+  when: item is defined and item != 'root'
+
+- name: Ensure Podman traefik network exists
+  containers.podman.podman_network:
+    name: "{{ podman_traefik_network }}"
+    state: present
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

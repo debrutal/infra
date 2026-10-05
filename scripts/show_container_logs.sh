@@ -122,15 +122,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Build base Docker command array
-DOCKER_BASE_CMD=("docker")
-if [[ -n "$DOCKER_TARGET_HOST" ]]; then
-  DOCKER_BASE_CMD+=("-H" "$DOCKER_TARGET_HOST")
-elif [[ -n "$REMOTE_SSH_TARGET" ]]; then
-  DOCKER_BASE_CMD+=("-H" "ssh://$REMOTE_SSH_TARGET")
+if [[ -n "$REMOTE_SSH_TARGET" ]]; then
+  DOCKER_BASE_CMD=("ssh" "$REMOTE_SSH_TARGET" "sudo docker")
+elif [[ -n "$DOCKER_TARGET_HOST" ]]; then
+  DOCKER_BASE_CMD=("docker" "-H" "$DOCKER_TARGET_HOST")
+else
+  DOCKER_BASE_CMD=("docker")
 fi
 
 # Verify Docker availability
-if ! command -v docker &> /dev/null && [[ -z "$REMOTE_SSH_TARGET" ]]; then
+if [[ -z "$REMOTE_SSH_TARGET" ]] && ! command -v docker &> /dev/null; then
   echo "Error: 'docker' command line tool is not installed or not in PATH." >&2
   exit 1
 fi

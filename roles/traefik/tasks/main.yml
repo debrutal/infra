@@ -12,7 +12,7 @@
   community.docker.docker_network:
     name: "{{ traefik_network_name }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create Traefik configuration directories
   ansible.builtin.file:
@@ -58,7 +58,7 @@
     content: "{}\n"
     dest: "{{ traefik_dir }}/acme/acme.json"
     mode: '0600'
-  when: (traefik_reset_acme | default(false))
+  when: (traefik_reset_acme | default(false)) | bool
   notify: Restart Traefik
 
 - name: Start Traefik container via Docker Compose
@@ -66,4 +66,4 @@
     project_src: "{{ traefik_dir }}"
     state: present
     recreate: "{{ (traefik_force_restart | default(false)) | ternary('always', 'auto') }}"
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

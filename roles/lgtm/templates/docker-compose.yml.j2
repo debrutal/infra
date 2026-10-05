@@ -29,6 +29,7 @@ services:
       - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/lib/containers/storage/overlay-containers:/var/lib/containers/storage/overlay-containers:ro
     command: -config.file=/etc/promtail/promtail-config.yaml
     depends_on:
       - loki
@@ -97,9 +98,10 @@ services:
     privileged: true
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /var/lib/containers/storage:/var/lib/containers/storage:ro
       - /dev/disk/:/dev/disk:ro
     devices:
       - /dev/kmsg

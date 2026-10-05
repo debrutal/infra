@@ -51,7 +51,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ invoiceninja_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Wait for Invoice Ninja service to be available
   ansible.builtin.command: >
@@ -62,7 +62,7 @@
   delay: 2
   changed_when: false
   failed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create or update Invoice Ninja admin user
   ansible.builtin.command: >-
@@ -93,4 +93,4 @@
   register: invoiceninja_user_res
   failed_when: false
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

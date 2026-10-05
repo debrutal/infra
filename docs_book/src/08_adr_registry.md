@@ -144,3 +144,32 @@ We implement a **Dual-Layer Testing Strategy**:
   - Executed via `./tests/run_tests.sh full`.
 - **Cons**:
   - Integration tests require local Docker daemon access.
+
+---
+
+## ADR-007: Migration from Docker Engine to Rootful Podman Architecture
+
+### Status
+**Accepted**
+
+### Context
+The platform runs 12+ multi-container stacks orchestrated via Docker Compose v2. To eliminate Docker daemon overhead, align with modern OCI standards, improve security, and benefit from native systemd integration without service degradation, the platform requires transitioning to Podman. The transition must ensure 100% functional parity across Traefik routing, Let's Encrypt ACME renewal, DNS resolution, Docker socket integrations (Traefik, AutoKuma, Authentik worker), and CI/CD builders.
+
+### Decision
+We adopt a **Rootful System-Level Podman architecture** with the following components:
+1. **`podman.socket` Systemd Service**: Emulates the Docker Engine API socket at `/run/podman/podman.sock` and symlinked to `/var/run/docker.sock`.
+2. **`podman-docker` CLI Compatibility Layer**: Provides transparent `/usr/bin/docker` execution.
+3. **Netavark + Aardvark-DNS**: Powers inter-container DNS name resolution on user-defined bridge networks (`traefik-net`), matching Docker's embedded DNS.
+4. **Preserved Host Bind Mounts and Named Volumes**: Retains `/opt/<app>` bind mounts and migrates named volumes to `/var/lib/containers/storage/volumes/`.
+5. **CRI Log Scraping**: Configures Promtail with `static_configs` targeting `/var/lib/containers/storage/overlay-containers/*/userdata/ctr.log` to reliably ingest Podman container logs into Loki.
+
+### Consequences
+- **Pros**:
+  - Direct systemd unit management and daemonless OCI execution.
+  - Preserved Compose v2 syntax (`community.docker.docker_compose_v2`) and automated Ansible deployment flows (`./deploy.sh`).
+  - Seamless inter-container DNS resolution via Netavark/Aardvark.
+  - Transparent support for socket-reliant services (Traefik, AutoKuma, Authentik).
+- **Cons**:
+  - Requires maintaining the `/var/run/docker.sock` symlink for backwards compatibility with legacy docker-compose tooling.
+  - Promtail requires direct filesystem log globbing rather than the standard Moby Docker API discovery plugin due to Podman list inspect differences.
+

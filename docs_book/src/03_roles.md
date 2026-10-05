@@ -15,13 +15,18 @@ This chapter documents each Ansible role, its task flow, Jinja2 templates, and h
   - **Extraction**: Downloads `nvim-linux-x86_64.tar.gz` to `/tmp` and extracts it into `/opt/nvim`.
   - **PATH Symlink**: Creates a symbolic link from `/opt/nvim/bin/nvim` to `/usr/local/bin/nvim`.
 
-## 3. `docker` Role
-- **Purpose**: Configures official Docker APT repository and installs Docker Engine, CLI, Containerd, Buildx, and Compose plugins.
-- **Tasks (`roles/docker/tasks/main.yml`)**:
-  - Creates `/etc/apt/keyrings` directory (`0755`).
-  - Configures GPG key and APT repository.
-  - Installs `docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`, `docker-compose-plugin`.
-  - Adds configured users to `docker` group.
+## 3. `podman` Role (Container Engine)
+- **Purpose**: Deploys rootful Podman container engine with systemd socket emulation (`podman.socket`), Docker CLI wrapper (`podman-docker`), Docker Compose v2 compatibility, Netavark networking backend, and Aardvark DNS container name resolution.
+- **Tasks (`roles/podman/tasks/main.yml`)**:
+  - Configures `/etc/containers/containers.conf` (`netavark` backend, `k8s-file` logging driver).
+  - Deploys `/etc/containers/registries.conf` with default registries.
+  - Installs `podman`, `podman-docker`, `docker-compose-v2`, `netavark`, `aardvark-dns`.
+  - Enables and starts `podman.socket`.
+  - Symlinks `/var/run/docker.sock` to `/run/podman/podman.sock` for 100% Docker API compatibility.
+  - Ensures `traefik-net` bridge network exists with DNS enabled.
+
+## 3b. `docker` Role (Legacy Compatibility)
+- **Purpose**: Legacy Docker CE engine installation role preserved for rollback and backward compatibility.
 
 ## 4. `traefik` Role
 - **Purpose**: Deploys Traefik v3 reverse proxy container, static/dynamic YAML configurations, and ACME certificate storage.
@@ -76,3 +81,7 @@ This chapter documents each Ansible role, its task flow, Jinja2 templates, and h
 ## 14. `homepage` Role
 - **Purpose**: Deploys Homepage central dashboard portal auto-populated with links and widgets for all infrastructure services.
 - **Domain**: `dash.mini.debrutal.dev`
+-
+-## 15. `bookorbit` Role
+-- **Purpose**: Deploys BookOrbit self-hosted library and reading platform with dedicated PostgreSQL and pgvector backend.
+-- **Domain**: `bookorbit.mini.debrutal.dev`

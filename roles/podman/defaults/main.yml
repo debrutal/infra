@@ -1,0 +1,27 @@
+---
+podman_packages:
+  - podman
+  - podman-docker
+  - docker-compose-v2
+  - netavark
+  - aardvark-dns
+  - catatonit
+  - slirp4netns
+  - crun
+  - runc
+
+podman_users:
+  - debrutal
+  - "{{ ansible_user }}"
+
+podman_service_enabled: true
+podman_socket_enabled: true
+podman_network_backend: "netavark"
+podman_log_driver: "k8s-file"
+podman_traefik_network: "{{ traefik_network_name | default('traefik-net') }}"
+podman_link_docker_sock: true
+podman_registries:
+  - docker.io
+  - ghcr.io
+  - quay.io
+  - gcr.io

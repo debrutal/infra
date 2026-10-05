@@ -9,20 +9,24 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: docker
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/containers/storage/overlay-containers/*/userdata/ctr.log
     relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: 'container'
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
-        target_label: 'compose_project'
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
-        target_label: 'compose_service'
+      - source_labels: ['__path__']
+        regex: '.*/overlay-containers/([a-f0-9]+)/userdata/ctr\.log'
+        target_label: 'container_id'
     pipeline_stages:
+      - regex:
+          expression: '^(?P<time>\S+)\s+(?P<stream>stdout|stderr)\s+[FP]\s+(?P<log>.*)$'
+      - output:
+          source: log
       - regex:
           expression: '(?i)(?P<log_level>(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|CRITICAL|TRACE|PANIC))'
       - labels:
           log_level:
+          stream:

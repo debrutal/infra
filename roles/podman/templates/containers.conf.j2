@@ -1,0 +1,12 @@
+# Ansible managed: Do not edit manually
+
+[engine]
+network_backend = "{{ podman_network_backend }}"
+cgroup_manager = "systemd"
+compose_warning_logs = false
+
+[containers]
+log_driver = "{{ podman_log_driver }}"
+
+[network]
+network_backend = "{{ podman_network_backend }}"

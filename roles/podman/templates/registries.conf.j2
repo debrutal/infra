@@ -1,0 +1,7 @@
+# Ansible managed: Do not edit manually
+
+unqualified-search-registries = [
+{% for reg in podman_registries %}
+  "{{ reg }}",
+{% endfor %}
+]

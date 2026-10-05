@@ -1,11 +1,12 @@
 ---
-- name: Reload systemd daemon
+- name: Restart podman socket
   ansible.builtin.systemd:
-    daemon_reload: true
+    name: podman.socket
+    state: restarted
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
-- name: Restart Fusion service
+- name: Restart podman service
   ansible.builtin.systemd:
-    name: "{{ fusion_service_name }}"
+    name: podman.service
     state: restarted
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

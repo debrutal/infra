@@ -45,7 +45,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ sentry_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Wait for Sentry (GlitchTip) web service to be available
   ansible.builtin.command: >
@@ -56,7 +56,7 @@
   delay: 2
   changed_when: false
   failed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create or update Sentry (GlitchTip) admin user
   ansible.builtin.command: >-
@@ -75,7 +75,7 @@
   register: sentry_user_res
   failed_when: false
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Configure Authentik OIDC provider in Sentry (GlitchTip)
   ansible.builtin.command: >-
@@ -110,5 +110,5 @@
   changed_when: false
   when:
     - sentry_authentik_enabled | default(true)
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
   tags: [sentry, glitchtip, authentik, sso]

@@ -28,13 +28,16 @@ ansible-playbook site.yml
 
 > **Note**: The `-K` (`--ask-become-pass`) option prompts Ansible to ask for `debrutal`'s `sudo` password at run time.
 
-### Target Specific Tags
-```bash
-# Provision only Neovim
-ansible-playbook site.yml --tags neovim -K
+# Deploy using convenience script (recommended):
+./deploy.sh
 
-# Provision Docker & Traefik
-ansible-playbook site.yml --tags "docker,traefik" -K
+# Target specific roles via tags:
+./deploy.sh -t podman
+./deploy.sh -t "traefik,authentik"
+./deploy.sh -t all
+
+# Alternatively, invoke ansible-playbook directly:
+ansible-playbook site.yml --tags "podman,traefik" -K
 ```
 
 ## 2. Accessing Traefik Dashboard
@@ -75,10 +78,17 @@ networks:
 
 ## 4. Viewing & Streaming Container Logs
 
-Use `./show_container_logs.sh` (or `./scripts/show_container_logs.sh`) to inspect or follow logs across all Docker containers:
+Use `./show_container_logs.sh` (or `./scripts/show_container_logs.sh`) to inspect or follow logs across all Podman / Docker containers:
 
 - **View latest logs**: `./show_container_logs.sh`
 - **Follow logs in real-time**: `./show_container_logs.sh -f`
 - **Include stopped containers**: `./show_container_logs.sh -a -n 100`
 - **Filter by service name**: `./show_container_logs.sh -g traefik -f`
+
+Or query Podman directly on the server:
+```bash
+podman ps
+podman logs -f <container_name>
+systemctl status podman.socket
+```
 

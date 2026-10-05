@@ -32,7 +32,7 @@
     name: docker
     enabled: true
     state: started
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Add user(s) to docker group
   ansible.builtin.user:

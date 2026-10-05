@@ -70,4 +70,4 @@
   community.docker.docker_compose_v2:
     project_src: "{{ lgtm_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

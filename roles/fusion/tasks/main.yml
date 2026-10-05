@@ -34,4 +34,4 @@
     enabled: "{{ fusion_service_enabled }}"
     state: "{{ fusion_service_state }}"
     daemon_reload: true
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

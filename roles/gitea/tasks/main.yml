@@ -34,7 +34,7 @@
   when:
     - gitea_runner_enabled | default(true)
     - gitea_dind_apparmor_profile_enabled | default(true)
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
   tags: [gitea, runner]
 
 - name: Install AppArmor profile for rootlesskit
@@ -113,7 +113,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ gitea_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Wait for Gitea service to be available
   ansible.builtin.command: >
@@ -123,7 +123,7 @@
   retries: 30
   delay: 2
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create Gitea admin user if not existing
   ansible.builtin.command: >
@@ -136,7 +136,7 @@
   register: gitea_create_admin_res
   failed_when: false
   changed_when: "'successfully created' in gitea_create_admin_res.stdout"
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Update Gitea admin user password if already existing
   ansible.builtin.command: >
@@ -147,7 +147,7 @@
   failed_when: false
   changed_when: false
   when:
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
     - "'already exists' in gitea_create_admin_res.stderr | default('') or 'already exists' in gitea_create_admin_res.stdout | default('')"
 
 - name: Generate Gitea runner registration token
@@ -157,7 +157,7 @@
   changed_when: false
   failed_when: false
   when:
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
     - gitea_runner_enabled | default(true)
   tags: [gitea, runner]
 
@@ -165,7 +165,7 @@
   ansible.builtin.set_fact:
     gitea_runner_registration_token: "{{ gitea_runner_token_cmd.stdout | trim }}"
   when:
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
     - gitea_runner_token_cmd is defined
     - gitea_runner_token_cmd.stdout is defined
     - gitea_runner_token_cmd.rc | default(1) == 0
@@ -177,7 +177,7 @@
     dest: "{{ gitea_dir }}/docker-compose.yml"
     mode: '0644'
   when:
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
     - gitea_runner_registration_token is defined
   tags: [gitea, runner]
 
@@ -186,7 +186,7 @@
     project_src: "{{ gitea_dir }}"
     state: present
   when:
-    - ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
     - gitea_runner_enabled | default(true)
   tags: [gitea, runner]
 
@@ -201,5 +201,5 @@
   register: gitea_authentik_auth_res
   failed_when: false
   changed_when: "'successfully created' in gitea_authentik_auth_res.stdout"
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
   tags: [gitea, authentik, sso]

@@ -8,8 +8,8 @@
       tags: [common, base]
     - role: neovim
       tags: [neovim, nvim]
-    - role: docker
-      tags: [docker]
+    - role: podman
+      tags: [podman, docker]
     - role: traefik
       tags: [traefik, proxy]
     - role: lago

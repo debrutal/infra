@@ -26,6 +26,14 @@ docker_users:
   - "{{ ansible_user }}"
 docker_api_version: "1.40"
 
+# Podman configuration
+podman_users:
+  - debrutal
+  - "{{ ansible_user }}"
+podman_link_docker_sock: true
+podman_network_backend: "netavark"
+podman_log_driver: "k8s-file"
+
 # Traefik configuration
 traefik_version: "v3.7.13"
 traefik_dir: "/opt/traefik"

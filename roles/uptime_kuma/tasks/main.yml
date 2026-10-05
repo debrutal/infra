@@ -21,7 +21,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ uptime_kuma_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Wait for Uptime Kuma container to be available
   ansible.builtin.command: >
@@ -32,7 +32,7 @@
   delay: 2
   changed_when: false
   failed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create or update Uptime Kuma admin user
   ansible.builtin.command: >
@@ -57,4 +57,4 @@
   register: uptime_kuma_user_res
   failed_when: false
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

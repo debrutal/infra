@@ -23,7 +23,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ authentik_dir }}"
     state: present
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Wait for Authentik service to be available
   ansible.builtin.command: >
@@ -34,7 +34,7 @@
   delay: 5
   changed_when: false
   failed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create or update Authentik admin user
   ansible.builtin.command: >
@@ -50,7 +50,7 @@
   register: authentik_user_res
   failed_when: false
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Configure Authentik ForwardAuth and OIDC Providers for applications
   ansible.builtin.command: >
@@ -158,4 +158,4 @@
   register: authentik_providers_res
   failed_when: false
   changed_when: false
-  when: ansible_connection != 'docker' and ansible_virtualization_type != 'docker'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

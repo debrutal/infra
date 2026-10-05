@@ -170,13 +170,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_interactive_cli() {
-  local tag_keys=("traefik" "gitea" "runner" "common" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "fusion" "lgtm" "bookorbit" "all")
+  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "fusion" "lgtm" "bookorbit" "all")
   local tag_labels=(
     "traefik        - Traefik reverse proxy & ACME SSL"
     "gitea          - Gitea self-hosted Git service"
     "runner         - Gitea Act Runner / CI build runners"
     "common         - Base system packages & firewall"
-    "docker         - Docker engine & compose setup"
+    "podman         - Podman engine, socket & netavark"
+    "docker         - Docker compatibility alias"
     "lago           - Lago usage-based billing platform"
     "invoiceninja   - Invoice Ninja billing & invoicing"
     "espocrm        - EspoCRM customer management"

@@ -13,7 +13,7 @@
   when:
     - lago_compose_file.stat.exists
     - ansible_connection != 'docker'
-    - ansible_virtualization_type != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Stop and remove Lago containers
   community.docker.docker_compose_v2:
@@ -25,7 +25,7 @@
     - lago_compose_file.stat.exists
     - lago_compose_ps.stdout | default('') | length > 0
     - ansible_connection != 'docker'
-    - ansible_virtualization_type != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Remove Lago named volumes
   community.docker.docker_volume:
@@ -39,7 +39,7 @@
     - lago_undeploy_volumes | bool
     - lago_compose_ps.stdout | default('') | length > 0
     - ansible_connection != 'docker'
-    - ansible_virtualization_type != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Remove Lago configuration directory
   ansible.builtin.file:
