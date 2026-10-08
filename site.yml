@@ -26,11 +26,17 @@
       tags: [gitea, git, runner]
     - role: authentik
       tags: [authentik, sso, auth]
-    - role: fusion
-      tags: [fusion, host_services]
     - role: lgtm
       tags: [lgtm, monitoring, logging, tracing]
     - role: homepage
       tags: [homepage, dashboard]
     - role: bookorbit
       tags: [bookorbit, library, reading]
+    - role: agentzero
+      tags: [agentzero, ai, agent]
+    - role: pinchflat
+      tags: [pinchflat, youtube, downloader, media]
+    - role: ebook2audiobook
+      tags: [ebook2audiobook, tts, media, audio]
+    - role: restic
+      tags: [restic, backup]

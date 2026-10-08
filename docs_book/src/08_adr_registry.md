@@ -45,14 +45,14 @@ We standardize on containerizing all application services using **Docker Compose
 **Accepted**
 
 ### Context
-Server `192.168.1.8` resides on an internal local network. Traditional Let's Encrypt HTTP-01 or TLS-ALPN-01 ACME challenges require public port 80/443 exposure from the internet, which is insecure and impractical for internal infrastructure subdomains under `*.mini.debrutal.dev`.
+Server `192.168.1.8` resides on an internal local network. Traditional Let's Encrypt HTTP-01 or TLS-ALPN-01 ACME challenges require public port 80/443 exposure from the internet, which is insecure and impractical for internal infrastructure subdomains under `*.mini.debrutal.dev` and local staging environments under `*.staging.kita-kit.de`.
 
 ### Decision
-We use Traefik's **Cloudflare DNS-01 ACME challenge provider** (`traefik_acme_challenge_type: "dns"`). Traefik uses Cloudflare API tokens (`CF_DNS_API_TOKEN`) to temporarily publish DNS TXT records (`_acme-challenge.mini.debrutal.dev`) to complete Let's Encrypt validation.
+We use Traefik's **Cloudflare DNS-01 ACME challenge provider** (`traefik_acme_challenge_type: "dns"`). Traefik uses Cloudflare API tokens (`CF_DNS_API_TOKEN`) to temporarily publish DNS TXT records (`_acme-challenge.mini.debrutal.dev`, `_acme-challenge.staging.kita-kit.de`) to complete Let's Encrypt validation.
 
 ### Consequences
 - **Pros**:
-  - Wildcard certificates (`mini.debrutal.dev`, `*.mini.debrutal.dev`) are requested and renewed automatically.
+  - Wildcard certificates (`*.mini.debrutal.dev`, `*.staging.kita-kit.de`) are requested and renewed automatically.
   - No inbound internet ports (80/443) need to be forwarded through network firewalls.
 - **Cons**:
   - Requires valid Cloudflare API tokens stored in Ansible Vault (`vault.yml`).

@@ -8,3 +8,28 @@
   ansible.builtin.apt:
     name: "{{ common_packages }}"
     state: present
+
+- name: Ensure root LVM volume consumes all available volume group space
+  ansible.builtin.command: lvextend -l +100%FREE -r /dev/ubuntu-vg/ubuntu-lv
+  register: common_lvextend_res
+  changed_when: "'Logical volume ubuntu-vg/ubuntu-lv successfully resized' in common_lvextend_res.stdout and 'unchanged' not in common_lvextend_res.stdout"
+  when:
+    - ansible_facts['lvm'] is defined
+    - "'ubuntu-vg' in (ansible_facts['lvm']['vgs'] | default({}))"
+    - (ansible_facts['lvm']['vgs']['ubuntu-vg']['free_g'] | default('0') | float) > 0
+
+- name: Ensure systemd-journald drop-in configuration directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: '0755'
+
+- name: Deploy systemd-journald retention limits
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/retention.conf
+    content: |
+      [Journal]
+      SystemMaxUse=4G
+      SystemKeepFree=10G
+    mode: '0644'
+  notify: Restart systemd-journald

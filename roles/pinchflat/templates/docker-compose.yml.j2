@@ -1,0 +1,53 @@
+services:
+  pinchflat:
+    image: ghcr.io/kieraneglin/pinchflat:{{ pinchflat_version }}
+    container_name: pinchflat
+    restart: always
+    environment:
+      - TZ={{ pinchflat_timezone }}
+      - LOG_LEVEL={{ pinchflat_log_level }}
+      - YT_DLP_WORKER_CONCURRENCY={{ pinchflat_worker_concurrency }}
+{% if pinchflat_enable_prometheus | default(false) %}
+      - ENABLE_PROMETHEUS=true
+{% endif %}
+{% if not (pinchflat_authentik_enabled | default(true)) and (pinchflat_auth_username | default('')) | length > 0 and (pinchflat_auth_password | default('')) | length > 0 %}
+      - BASIC_AUTH_USERNAME={{ pinchflat_auth_username }}
+      - BASIC_AUTH_PASSWORD={{ pinchflat_auth_password }}
+{% endif %}
+    volumes:
+      - {{ pinchflat_config_dir }}:/config
+      - {{ pinchflat_downloads_dir }}:/downloads
+{% if pinchflat_host_port is defined and pinchflat_host_port %}
+    ports:
+      - "{{ pinchflat_host_port }}:8945"
+{% endif %}
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pinchflat.rule=Host(`{{ pinchflat_domain }}`)"
+      - "traefik.http.routers.pinchflat.entrypoints={{ pinchflat_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.pinchflat.tls=true"
+{% if pinchflat_traefik_certresolver is defined and pinchflat_traefik_certresolver %}
+      - "traefik.http.routers.pinchflat.tls.certresolver={{ pinchflat_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if pinchflat_authentik_enabled | default(true) %}
+      - "traefik.http.routers.pinchflat.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.pinchflat.loadbalancer.server.port={{ pinchflat_port }}"
+      - "kuma.pinchflat.http.name=Pinchflat"
+      - "kuma.pinchflat.http.url=http://pinchflat:{{ pinchflat_port }}/healthcheck"
+      - "homepage.group=Media & Knowledge"
+      - "homepage.name=Pinchflat"
+      - "homepage.icon=pinchflat"
+      - "homepage.href={{ pinchflat_site_url }}"
+      - "homepage.description=YouTube Download Manager & Content Archiver"
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ pinchflat_traefik_network }}

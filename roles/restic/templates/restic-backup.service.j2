@@ -1,0 +1,9 @@
+[Unit]
+Description=Restic automated backup service for Gitea, Authentik, and BookOrbit
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/restic-backup.sh backup
+StandardOutput=journal
+StandardError=journal

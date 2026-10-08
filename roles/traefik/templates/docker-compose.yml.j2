@@ -24,20 +24,31 @@ services:
       - {{ traefik_dir }}/traefik.yml:/etc/traefik/traefik.yml:ro
       - {{ traefik_dir }}/dynamic:/etc/traefik/dynamic:ro
       - {{ traefik_dir }}/acme/acme.json:/etc/traefik/acme/acme.json
+      - {{ traefik_dir }}/certs:/etc/traefik/certs:ro
     networks:
       - traefik_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik_api.rule=Host(`traefik.local`) || Host(`traefik.mini.debrutal.dev`) || Host(`dashboard.mini.debrutal.dev`)"
+      - "traefik.http.routers.traefik_api.rule=Host(`traefik.local`) || Host(`traefik.mini.debrutal.dev`) || Host(`dashboard.mini.debrutal.dev`){% if traefik_acme_domains is defined and ('staging.kita-kit.de' in (traefik_acme_domains | map(attribute='main') | list)) %} || Host(`traefik.staging.kita-kit.de`) || Host(`dashboard.staging.kita-kit.de`){% endif %}"
       - "traefik.http.routers.traefik_api.service=api@internal"
 {% if traefik_acme_enabled %}
       - "traefik.http.routers.traefik_api.entrypoints=websecure"
       - "traefik.http.routers.traefik_api.tls=true"
       - "traefik.http.routers.traefik_api.tls.certresolver=letsencrypt"
+{% if traefik_acme_domains is defined and traefik_acme_domains %}
+{% for domain_item in traefik_acme_domains %}
+{% set domain_idx = loop.index0 %}
+      - "traefik.http.routers.traefik_api.tls.domains[{{ domain_idx }}].main={{ domain_item.main }}"
+{% for san in domain_item.sans %}
+      - "traefik.http.routers.traefik_api.tls.domains[{{ domain_idx }}].sans={{ san }}"
+{% endfor %}
+{% endfor %}
+{% else %}
       - "traefik.http.routers.traefik_api.tls.domains[0].main={{ traefik_acme_domain_main }}"
 {% for san in traefik_acme_domain_sans %}
       - "traefik.http.routers.traefik_api.tls.domains[0].sans={{ san }}"
 {% endfor %}
+{% endif %}
 {% if traefik_authentik_enabled | default(true) %}
       - "traefik.http.routers.traefik_api.middlewares=authentik@file"
 {% endif %}

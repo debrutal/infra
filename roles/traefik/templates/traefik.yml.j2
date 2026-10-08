@@ -44,11 +44,27 @@ entryPoints:
       tls:
         certResolver: letsencrypt
         domains:
+{% if traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != '' and not (traefik_acme_kitakit_token | string).startswith('{{') %}
           - main: "{{ traefik_acme_domain_main }}"
             sans:
 {% for san in traefik_acme_domain_sans %}
               - "{{ san }}"
 {% endfor %}
+{% elif traefik_acme_domains is defined and traefik_acme_domains %}
+{% for domain_item in traefik_acme_domains %}
+          - main: "{{ domain_item.main }}"
+            sans:
+{% for san in domain_item.sans %}
+              - "{{ san }}"
+{% endfor %}
+{% endfor %}
+{% else %}
+          - main: "{{ traefik_acme_domain_main }}"
+            sans:
+{% for san in traefik_acme_domain_sans %}
+              - "{{ san }}"
+{% endfor %}
+{% endif %}
 {% endif %}
 {% if traefik_enable_dashboard and traefik_dashboard_insecure %}
   traefik:

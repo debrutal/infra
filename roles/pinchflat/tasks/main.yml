@@ -1,0 +1,35 @@
+---
+- name: Create Pinchflat directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ pinchflat_dir }}"
+    - "{{ pinchflat_config_dir }}"
+    - "{{ pinchflat_downloads_dir }}"
+
+- name: Deploy Pinchflat docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ pinchflat_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Pinchflat
+
+- name: Start Pinchflat container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ pinchflat_dir }}"
+    state: present
+    recreate: "{{ (pinchflat_force_restart | default(false) or all_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for Pinchflat container to be running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' pinchflat
+  register: pinchflat_status_res
+  until: pinchflat_status_res.rc == 0 and pinchflat_status_res.stdout.strip() == 'true'
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

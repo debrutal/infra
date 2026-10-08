@@ -7,6 +7,9 @@ compose_warning_logs = false
 
 [containers]
 log_driver = "{{ podman_log_driver }}"
+{% if podman_log_size_max is defined and podman_log_size_max %}
+log_size_max = {{ podman_log_size_max }}
+{% endif %}
 
 [network]
 network_backend = "{{ podman_network_backend }}"

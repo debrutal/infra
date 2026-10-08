@@ -1,0 +1,26 @@
+---
+agentzero_dir: "/opt/agentzero"
+agentzero_version: "latest"
+agentzero_traefik_network: "{{ traefik_network_name }}"
+agentzero_traefik_certresolver: ""
+agentzero_traefik_entrypoints: "websecure"
+agentzero_domain: "agentzero.mini.debrutal.dev"
+agentzero_site_url: "https://{{ agentzero_domain }}"
+agentzero_port: 80
+agentzero_host_port: ""
+
+# User authentication (Web UI basic auth)
+agentzero_auth_login: "{{ vault_agentzero_auth_login | default(default_admin_username) }}"
+agentzero_auth_password: "{{ vault_agentzero_auth_password | default(default_admin_password) }}"
+
+# Data persistence
+agentzero_data_dir: "{{ agentzero_dir }}/usr"
+
+# Optional Docker socket integration (disabled by default)
+agentzero_docker_socket_enabled: false
+
+# Authentik Forward Auth (disabled by default; uses built-in auth)
+agentzero_authentik_enabled: false
+
+# Force restart flag
+agentzero_force_restart: false

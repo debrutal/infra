@@ -1,0 +1,83 @@
+---
+- name: Install Restic and SQLite packages
+  ansible.builtin.apt:
+    name: "{{ restic_packages }}"
+    state: present
+
+- name: Create Restic backup and configuration directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { path: "{{ restic_backup_root }}", mode: '0755' }
+    - { path: "{{ restic_dumps_dir }}", mode: '0700' }
+    - { path: "/etc/restic", mode: '0700' }
+
+- name: Deploy Restic password file
+  ansible.builtin.copy:
+    content: "{{ restic_password }}\n"
+    dest: "{{ restic_password_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Deploy Restic environment configuration
+  ansible.builtin.template:
+    src: restic-env.sh.j2
+    dest: "{{ restic_env_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Check if Restic repository is initialized
+  ansible.builtin.stat:
+    path: "{{ restic_repo_dir }}/config"
+  register: restic_repo_stat
+
+- name: Initialize Restic repository
+  ansible.builtin.command: restic init -r "{{ restic_repo_dir }}" --password-file "{{ restic_password_file }}"
+  when: not restic_repo_stat.stat.exists
+  changed_when: true
+
+- name: Deploy Restic backup orchestration script
+  ansible.builtin.template:
+    src: restic-backup.sh.j2
+    dest: /usr/local/bin/restic-backup.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Deploy Restic CLI wrapper utility
+  ansible.builtin.template:
+    src: restic-infra.j2
+    dest: /usr/local/bin/restic-infra
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Deploy Restic systemd service
+  ansible.builtin.template:
+    src: restic-backup.service.j2
+    dest: /etc/systemd/system/restic-backup.service
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Deploy Restic systemd timer
+  ansible.builtin.template:
+    src: restic-backup.timer.j2
+    dest: /etc/systemd/system/restic-backup.timer
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Enable and start Restic backup systemd timer
+  ansible.builtin.systemd:
+    name: restic-backup.timer
+    enabled: "{{ restic_timer_enabled | default(true) }}"
+    state: started
+    daemon_reload: true
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

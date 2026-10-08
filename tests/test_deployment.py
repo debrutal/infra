@@ -108,6 +108,8 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("dnsChallenge:", content)
         self.assertIn("provider: cloudflare", content)
         self.assertIn("admin@debrutal.dev", content)
+        self.assertIn("staging.kita-kit.de", content)
+        self.assertIn("*.staging.kita-kit.de", content)
 
     def test_06_traefik_docker_compose_config(self):
         """Verify docker-compose.yml contains environment vars and domain router rules."""
@@ -117,18 +119,18 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("CF_DNS_API_TOKEN=", content)
         self.assertIn("mini.debrutal.dev", content)
         self.assertIn("*.mini.debrutal.dev", content)
+        self.assertIn("staging.kita-kit.de", content)
+        self.assertIn("*.staging.kita-kit.de", content)
         self.assertIn("host.docker.internal:host-gateway", content)
 
     def test_07_traefik_dynamic_config(self):
-        """Verify dynamic_conf.yml contains TLS default generated cert for *.mini.debrutal.dev and fusion router."""
+        """Verify dynamic_conf.yml contains TLS default generated cert for *.mini.debrutal.dev."""
         res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/traefik/dynamic/dynamic_conf.yml"], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0, "Failed to read /opt/traefik/dynamic/dynamic_conf.yml")
         content = res.stdout
         self.assertIn("defaultGeneratedCert:", content)
         self.assertIn("main: \"mini.debrutal.dev\"", content)
         self.assertIn("*.mini.debrutal.dev", content)
-        self.assertIn("fusion.mini.debrutal.dev", content)
-        self.assertIn("host.docker.internal:4040", content)
 
 
     def test_09_gitea_installation(self):
@@ -186,14 +188,6 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertEqual(res_compose.returncode, 0, "/opt/lago/docker-compose.yml missing")
         self.assertIn("API_URL:", res_compose.stdout)
         self.assertIn("LAGO_DOMAIN:", res_compose.stdout)
-
-    def test_12_fusion_systemd_installation(self):
-        """Verify Fusion systemd service file creation."""
-        res = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/etc/systemd/system/fusion.service"], capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0, "/etc/systemd/system/fusion.service missing")
-        self.assertIn("Description=Fusion Service", res.stdout)
-        self.assertIn("ExecStart=", res.stdout)
-        self.assertIn("WantedBy=multi-user.target", res.stdout)
 
     def test_13_lgtm_installation(self):
         """Verify LGTM containerized directory and docker-compose.yml configuration."""
@@ -259,6 +253,83 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("glitchtip/glitchtip", res_compose.stdout)
         self.assertIn("ENABLE_USER_REGISTRATION:", res_compose.stdout)
         self.assertIn("ENABLE_SOCIAL_APPS_USER_REGISTRATION:", res_compose.stdout)
+
+    def test_16_agentzero_installation(self):
+        """Verify Agent Zero containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/agentzero"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/agentzero directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/agentzero/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/agentzero/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("agentzero.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("agent0ai/agent-zero", res_compose.stdout)
+
+        # Verify data directory
+        res_usr = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/agentzero/usr"], capture_output=True)
+        self.assertEqual(res_usr.returncode, 0, "/opt/agentzero/usr directory missing")
+
+    def test_17_pinchflat_installation(self):
+        """Verify Pinchflat containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/pinchflat"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/pinchflat directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/pinchflat/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/pinchflat/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("pinchflat.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("ghcr.io/kieraneglin/pinchflat", res_compose.stdout)
+        self.assertIn("traefik.http.routers.pinchflat.middlewares=authentik@file", res_compose.stdout)
+
+        for subdir in ["config", "downloads"]:
+            res_sub = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/pinchflat/{subdir}"], capture_output=True)
+            self.assertEqual(res_sub.returncode, 0, f"/opt/pinchflat/{subdir} directory missing")
+
+    def test_18_ebook2audiobook_installation(self):
+        """Verify eBook2Audiobook containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/ebook2audiobook"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/ebook2audiobook directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/ebook2audiobook/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/ebook2audiobook/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("ebook2audiobook.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("athomasson2/ebook2audiobook", res_compose.stdout)
+        self.assertIn("traefik.http.routers.ebook2audiobook.middlewares=authentik@file", res_compose.stdout)
+
+        for subdir in ["ebooks", "audiobooks", "models", "voices", "tmp"]:
+            res_sub = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/ebook2audiobook/{subdir}"], capture_output=True)
+            self.assertEqual(res_sub.returncode, 0, f"/opt/ebook2audiobook/{subdir} directory missing")
+
+    def test_19_restic_backup_installation(self):
+        """Verify Restic backup directories, configuration, scripts, and systemd units."""
+        for path in ["/backup", "/backup/dumps", "/etc/restic"]:
+            res = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", path], capture_output=True)
+            self.assertEqual(res.returncode, 0, f"{path} directory missing")
+
+        res_pwd = subprocess.run(["docker", "exec", CONTAINER_NAME, "stat", "-c", "%a", "/etc/restic/password"], capture_output=True, text=True)
+        self.assertEqual(res_pwd.returncode, 0, "/etc/restic/password missing")
+        self.assertEqual(res_pwd.stdout.strip(), "600")
+
+        res_env = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/etc/restic/env.sh"], capture_output=True, text=True)
+        self.assertEqual(res_env.returncode, 0, "/etc/restic/env.sh missing")
+        self.assertIn("RESTIC_REPOSITORY", res_env.stdout)
+
+        res_script = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/usr/local/bin/restic-backup.sh"], capture_output=True, text=True)
+        self.assertEqual(res_script.returncode, 0, "/usr/local/bin/restic-backup.sh missing")
+        self.assertIn("authentik-db", res_script.stdout)
+        self.assertIn("bookorbit-db", res_script.stdout)
+        self.assertIn("gitea.db", res_script.stdout)
+        self.assertIn("restic backup", res_script.stdout)
+
+        res_infra = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-x", "/usr/local/bin/restic-infra"], capture_output=True)
+        self.assertEqual(res_infra.returncode, 0, "/usr/local/bin/restic-infra not executable")
+
+        res_svc = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/systemd/system/restic-backup.service"], capture_output=True)
+        self.assertEqual(res_svc.returncode, 0, "/etc/systemd/system/restic-backup.service missing")
+
+        res_timer = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/systemd/system/restic-backup.timer"], capture_output=True)
+        self.assertEqual(res_timer.returncode, 0, "/etc/systemd/system/restic-backup.timer missing")
 
 
 if __name__ == "__main__":

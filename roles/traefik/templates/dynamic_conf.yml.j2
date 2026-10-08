@@ -1,25 +1,4 @@
 http:
-{% if traefik_fusion_enabled | default(true) %}
-  routers:
-    fusion:
-      rule: "Host(`{{ traefik_fusion_domain | default('fusion.mini.debrutal.dev') }}`)"
-      entryPoints:
-        - websecure
-      service: fusion-service
-{% if traefik_acme_enabled %}
-      tls:
-        certResolver: letsencrypt
-{% else %}
-      tls: {}
-{% endif %}
-
-  services:
-    fusion-service:
-      loadBalancer:
-        servers:
-          - url: "http://host.docker.internal:{{ traefik_fusion_target_port | default(4040) }}"
-{% endif %}
-
   middlewares:
     security-headers:
       headers:
@@ -46,6 +25,11 @@ http:
 
 {% if traefik_acme_enabled %}
 tls:
+{% if traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != '' and not (traefik_acme_kitakit_token | string).startswith('{{') %}
+  certificates:
+    - certFile: /etc/traefik/certs/certificates/staging.kita-kit.de.crt
+      keyFile: /etc/traefik/certs/certificates/staging.kita-kit.de.key
+{% endif %}
   stores:
     default:
       defaultGeneratedCert:

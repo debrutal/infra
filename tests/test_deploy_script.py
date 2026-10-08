@@ -116,6 +116,50 @@ class TestDeployScript(unittest.TestCase):
         self.assertIn("gitea_runner_count=8", result.stdout)
         self.assertIn("runner_force_restart=true", result.stdout)
 
+    def test_interactive_cli_pinchflat(self):
+        # 1. 'n' (clear all)
+        # 2. '17' (select pinchflat [17])
+        # 3. 'c' (confirm tags)
+        # 4. 'y' (restart pinchflat container)
+        # 5. 'y' (dry run)
+        # 6. '' (no extra vars)
+        # 7. 'y' (confirm)
+        user_input = "n\n17\nc\ny\ny\n\ny\n"
+        cmd = [SCRIPT_PATH, "-i"]
+        result = subprocess.run(cmd, input=user_input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--tags pinchflat", result.stdout)
+        self.assertIn("pinchflat_force_restart=true", result.stdout)
+
+    def test_interactive_cli_ebook2audiobook(self):
+        # 1. 'n' (clear all)
+        # 2. '18' (select ebook2audiobook [18])
+        # 3. 'c' (confirm tags)
+        # 4. 'y' (restart ebook2audiobook container)
+        # 5. 'y' (dry run)
+        # 6. '' (no extra vars)
+        # 7. 'y' (confirm)
+        user_input = "n\n18\nc\ny\ny\n\ny\n"
+        cmd = [SCRIPT_PATH, "-i"]
+        result = subprocess.run(cmd, input=user_input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--tags ebook2audiobook", result.stdout)
+        self.assertIn("ebook2audiobook_force_restart=true", result.stdout)
+
+    def test_interactive_cli_restic(self):
+        # 1. 'n' (clear all)
+        # 2. '19' (select restic [19])
+        # 3. 'c' (confirm tags)
+        # 4. 'y' (restart restic container/service)
+        # 5. 'y' (dry run)
+        # 6. '' (no extra vars)
+        # 7. 'y' (confirm)
+        user_input = "n\n19\nc\ny\ny\n\ny\n"
+        cmd = [SCRIPT_PATH, "-i"]
+        result = subprocess.run(cmd, input=user_input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--tags restic", result.stdout)
+
     def test_interactive_cli_cancel(self):
         user_input = "c\n\n\n\ny\n\nn\n"
         cmd = [SCRIPT_PATH, "-i"]

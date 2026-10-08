@@ -1,0 +1,38 @@
+---
+- name: Create eBook2Audiobook directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0777'
+  loop:
+    - "{{ ebook2audiobook_dir }}"
+    - "{{ ebook2audiobook_ebooks_dir }}"
+    - "{{ ebook2audiobook_audiobooks_dir }}"
+    - "{{ ebook2audiobook_models_dir }}"
+    - "{{ ebook2audiobook_voices_dir }}"
+    - "{{ ebook2audiobook_tmp_dir }}"
+
+- name: Deploy eBook2Audiobook docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ ebook2audiobook_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart eBook2Audiobook
+
+- name: Start eBook2Audiobook container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ebook2audiobook_dir }}"
+    state: present
+    recreate: "{{ (ebook2audiobook_force_restart | default(false) or all_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for eBook2Audiobook container to be running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' ebook2audiobook
+  register: ebook2audiobook_status_res
+  until: ebook2audiobook_status_res.rc == 0 and ebook2audiobook_status_res.stdout.strip() == 'true'
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

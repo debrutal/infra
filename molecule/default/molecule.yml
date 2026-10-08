@@ -26,6 +26,13 @@ provisioner:
         traefik_acme_domain_main: "mini.debrutal.dev"
         traefik_acme_domain_sans:
           - "*.mini.debrutal.dev"
+        traefik_acme_domains:
+          - main: "mini.debrutal.dev"
+            sans:
+              - "*.mini.debrutal.dev"
+          - main: "staging.kita-kit.de"
+            sans:
+              - "*.staging.kita-kit.de"
         traefik_acme_challenge_type: "dns"
         traefik_acme_dns_provider: "cloudflare"
         traefik_acme_dns_resolvers:

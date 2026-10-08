@@ -87,6 +87,48 @@
         outpost.providers.add(hp_provider);
         outpost.save();
 
+    pf_provider, _ = ProxyProvider.objects.get_or_create(
+        name='Pinchflat ForwardAuth',
+        defaults={
+            'mode': ProxyMode.FORWARD_SINGLE,
+            'external_host': 'https://{{ pinchflat_domain | default("pinchflat.mini.debrutal.dev") }}',
+            'authorization_flow': implicit_flow,
+        }
+    );
+    pf_provider.mode = ProxyMode.FORWARD_SINGLE;
+    pf_provider.external_host = 'https://{{ pinchflat_domain | default("pinchflat.mini.debrutal.dev") }}';
+    pf_provider.save();
+    pf_app, _ = Application.objects.get_or_create(
+        slug='pinchflat',
+        defaults={'name': 'Pinchflat', 'provider': pf_provider}
+    );
+    pf_app.provider = pf_provider;
+    pf_app.save();
+    if outpost:
+        outpost.providers.add(pf_provider);
+        outpost.save();
+
+    eb_provider, _ = ProxyProvider.objects.get_or_create(
+        name='eBook2Audiobook ForwardAuth',
+        defaults={
+            'mode': ProxyMode.FORWARD_SINGLE,
+            'external_host': 'https://{{ ebook2audiobook_domain | default("ebook2audiobook.mini.debrutal.dev") }}',
+            'authorization_flow': implicit_flow,
+        }
+    );
+    eb_provider.mode = ProxyMode.FORWARD_SINGLE;
+    eb_provider.external_host = 'https://{{ ebook2audiobook_domain | default("ebook2audiobook.mini.debrutal.dev") }}';
+    eb_provider.save();
+    eb_app, _ = Application.objects.get_or_create(
+        slug='ebook2audiobook',
+        defaults={'name': 'eBook2Audiobook', 'provider': eb_provider}
+    );
+    eb_app.provider = eb_provider;
+    eb_app.save();
+    if outpost:
+        outpost.providers.add(eb_provider);
+        outpost.save();
+
     gitea_provider, _ = OAuth2Provider.objects.get_or_create(
         name='Gitea OIDC Provider',
         defaults={

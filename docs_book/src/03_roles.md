@@ -65,11 +65,7 @@ This chapter documents each Ansible role, its task flow, Jinja2 templates, and h
 - **Purpose**: Deploys Authentik Identity Provider & Single Sign-On server with PostgreSQL and Redis backends. Automatically registers OIDC providers for applications (Gitea, Grafana).
 - **Domain**: `authentik.mini.debrutal.dev`
 
-## 12. `fusion` Role
-- **Purpose**: Configures native host service binary and systemd unit file (`/etc/systemd/system/fusion.service`).
-- **Domain**: `fusion.mini.debrutal.dev` (Port `4040`)
-
-## 13. `lgtm` Role
+## 12. `lgtm` Role
 - **Purpose**: Deploys the complete LGTM Observability Stack:
   - **Loki**: Log aggregation.
   - **Promtail**: Docker socket log shipper.
@@ -78,10 +74,47 @@ This chapter documents each Ansible role, its task flow, Jinja2 templates, and h
   - **Grafana**: Unified visualization UI with pre-provisioned datasources and Authentik OIDC integration.
 - **Domain**: `grafana.mini.debrutal.dev`
 
-## 14. `homepage` Role
+## 13. `homepage` Role
 - **Purpose**: Deploys Homepage central dashboard portal auto-populated with links and widgets for all infrastructure services.
 - **Domain**: `dash.mini.debrutal.dev`
--
--## 15. `bookorbit` Role
--- **Purpose**: Deploys BookOrbit self-hosted library and reading platform with dedicated PostgreSQL and pgvector backend.
--- **Domain**: `bookorbit.mini.debrutal.dev`
+
+## 14. `bookorbit` Role
+- **Purpose**: Deploys BookOrbit self-hosted library and reading platform with dedicated PostgreSQL and pgvector backend.
+- **Domain**: `bookorbit.mini.debrutal.dev`
+
+## 15. `agentzero` Role
+- **Purpose**: Deploys Agent Zero AI agent framework container with optional tool execution and persistent workspace.
+- **Domain**: `agentzero.mini.debrutal.dev`
+
+## 16. `pinchflat` Role
+- **Purpose**: Deploys Pinchflat YouTube media downloader and content archiver (powered by Elixir, Phoenix LiveView, and yt-dlp).
+- **Domain**: `pinchflat.mini.debrutal.dev` (Port `8945`)
+- **Key Features**:
+  - Traefik HTTPS routing with automatic Let's Encrypt certificates.
+  - Persistent volume mounts for configuration/database (`/opt/pinchflat/config`) and media library (`/opt/pinchflat/downloads`).
+  - Authentik ForwardAuth Single Sign-On integration via Traefik middleware (with fallback basic authentication).
+  - AutoKuma health monitoring integration (`/healthcheck`) and Homepage dashboard tile.
+
+## 17. `ebook2audiobook` Role
+- **Purpose**: Deploys eBook2Audiobook containerized platform to convert non-DRM e-books (.epub, .pdf, .mobi, .txt) into audiobooks with TTS engines and optional voice cloning.
+- **Domain**: `ebook2audiobook.mini.debrutal.dev` (Port `7860`)
+- **Key Features**:
+  - Traefik HTTPS routing with automatic Let's Encrypt certificates.
+  - Persistent volume mounts for ebooks (`/opt/ebook2audiobook/ebooks`), audiobooks (`/opt/ebook2audiobook/audiobooks`), models, voices, and tmp storage.
+  - Authentik ForwardAuth Single Sign-On integration via Traefik middleware.
+  - AutoKuma health monitoring and Homepage dashboard integration under Media & Knowledge.
+
+## 18. `restic` Role (Automated Backups)
+- **Purpose**: Provides automated, deduplicated, and encrypted backups for key components (Gitea, Authentik, BookOrbit) using Restic with local storage in `/backup`.
+- **Target Repository**: `/backup/restic`
+- **Staging Dumps Directory**: `/backup/dumps`
+- **Key Features**:
+  - Installs `restic` and `sqlite3` packages.
+  - Safe, consistent database exports:
+    - **Authentik**: `pg_dump` of PostgreSQL database (`authentik`).
+    - **BookOrbit**: `pg_dump` of PostgreSQL database (`bookorbit`).
+    - **Gitea**: Atomic SQLite `.backup` hot-dump of `/opt/gitea/data/gitea/gitea.db`.
+  - Comprehensive Restic backup of database dumps and persistent application directories (`/opt/gitea`, `/opt/authentik`, `/opt/bookorbit`), excluding ephemeral/recreatable cache and raw database storage.
+  - Retention & pruning policy: `--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`.
+  - Automated systemd timer (`restic-backup.timer`) scheduled daily at 03:00.
+  - Administrative CLI wrapper `/usr/local/bin/restic-infra` for one-command inspection (`sudo restic-infra snapshots`, `sudo restic-infra check`).

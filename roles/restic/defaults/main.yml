@@ -1,0 +1,26 @@
+---
+restic_backup_root: "/backup"
+restic_repo_dir: "{{ restic_backup_root }}/restic"
+restic_dumps_dir: "{{ restic_backup_root }}/dumps"
+restic_password: "{{ vault_restic_password | default('change-me-restic-secure-password-backup') }}"
+restic_password_file: "/etc/restic/password"
+restic_env_file: "/etc/restic/env.sh"
+
+# Retention policy
+restic_keep_daily: 7
+restic_keep_weekly: 4
+restic_keep_monthly: 6
+
+# Systemd automation
+restic_timer_schedule: "*-*-* 03:00:00"
+restic_timer_enabled: true
+
+# Packages
+restic_packages:
+  - restic
+  - sqlite3
+
+# Component toggles
+restic_gitea_enabled: true
+restic_authentik_enabled: true
+restic_bookorbit_enabled: true

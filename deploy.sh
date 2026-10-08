@@ -170,7 +170,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_interactive_cli() {
-  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "fusion" "lgtm" "bookorbit" "all")
+  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "lgtm" "bookorbit" "agentzero" "pinchflat" "ebook2audiobook" "restic" "all")
   local tag_labels=(
     "traefik        - Traefik reverse proxy & ACME SSL"
     "gitea          - Gitea self-hosted Git service"
@@ -185,9 +185,12 @@ run_interactive_cli() {
     "sentry         - Sentry error tracking platform"
     "authentik      - Authentik SSO & identity provider"
     "homepage       - Homepage dashboard portal"
-    "fusion         - Fusion native host app & systemd service"
     "lgtm           - LGTM stack (Loki, Grafana, Tempo, Prometheus)"
     "bookorbit      - BookOrbit self-hosted library & reading platform"
+    "agentzero      - Agent Zero AI framework & autonomous agent"
+    "pinchflat      - Pinchflat YouTube download manager & archiver"
+    "ebook2audiobook - eBook to Audiobook TTS conversion platform"
+    "restic         - Restic automated backups for Gitea, Authentik, BookOrbit"
     "all            - Run full playbook (all roles)"
   )
 

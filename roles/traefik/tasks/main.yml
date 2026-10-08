@@ -23,6 +23,8 @@
     - "{{ traefik_dir }}"
     - "{{ traefik_dir }}/dynamic"
     - "{{ traefik_dir }}/acme"
+    - "{{ traefik_dir }}/certs"
+    - "{{ traefik_dir }}/scripts"
 
 - name: Create ACME storage file with secure permissions
   ansible.builtin.file:
@@ -31,6 +33,37 @@
     mode: '0600'
     modification_time: preserve
     access_time: preserve
+
+- name: Deploy kita-kit.de Lego certificate renewal script
+  ansible.builtin.template:
+    src: cert-kitakit.sh.j2
+    dest: "{{ traefik_dir }}/scripts/cert-kitakit.sh"
+    mode: '0750'
+  when: traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != ''
+
+- name: Deploy kita-kit.de certificate renewal systemd service and timer
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    mode: '0644'
+  loop:
+    - { src: "traefik-cert-kitakit.service.j2", dest: "traefik-cert-kitakit.service" }
+    - { src: "traefik-cert-kitakit.timer.j2", dest: "traefik-cert-kitakit.timer" }
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker' and traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != ''
+
+- name: Enable and start kita-kit.de certificate renewal timer
+  ansible.builtin.systemd:
+    name: traefik-cert-kitakit.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker' and traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != ''
+
+- name: Obtain initial kita-kit.de wildcard certificate if not present
+  ansible.builtin.command: "{{ traefik_dir }}/scripts/cert-kitakit.sh"
+  args:
+    creates: "{{ traefik_dir }}/certs/certificates/staging.kita-kit.de.crt"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker' and traefik_acme_kitakit_token is defined and traefik_acme_kitakit_token != ''
 
 - name: Deploy Traefik static configuration
   ansible.builtin.template:

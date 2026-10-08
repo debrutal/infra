@@ -1,0 +1,25 @@
+---
+ebook2audiobook_dir: "/opt/ebook2audiobook"
+ebook2audiobook_image: "athomasson2/ebook2audiobook"
+ebook2audiobook_version: "latest"
+ebook2audiobook_traefik_network: "{{ traefik_network_name }}"
+ebook2audiobook_traefik_certresolver: ""
+ebook2audiobook_traefik_entrypoints: "websecure"
+ebook2audiobook_domain: "ebook2audiobook.mini.debrutal.dev"
+ebook2audiobook_site_url: "https://{{ ebook2audiobook_domain }}"
+ebook2audiobook_port: 7860
+ebook2audiobook_host_port: ""
+ebook2audiobook_timezone: "Europe/Berlin"
+
+# Data persistence directories
+ebook2audiobook_ebooks_dir: "{{ ebook2audiobook_dir }}/ebooks"
+ebook2audiobook_audiobooks_dir: "{{ ebook2audiobook_dir }}/audiobooks"
+ebook2audiobook_models_dir: "{{ ebook2audiobook_dir }}/models"
+ebook2audiobook_voices_dir: "{{ ebook2audiobook_dir }}/voices"
+ebook2audiobook_tmp_dir: "{{ ebook2audiobook_dir }}/tmp"
+
+# Authentik Forward Auth (enabled by default)
+ebook2audiobook_authentik_enabled: true
+
+# Force restart flag
+ebook2audiobook_force_restart: false

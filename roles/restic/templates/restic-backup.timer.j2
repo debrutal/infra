@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Restic backup timer for Gitea, Authentik, and BookOrbit
+
+[Timer]
+OnCalendar={{ restic_timer_schedule }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

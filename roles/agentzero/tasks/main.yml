@@ -1,0 +1,34 @@
+---
+- name: Create Agent Zero directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ agentzero_dir }}"
+    - "{{ agentzero_data_dir }}"
+
+- name: Deploy Agent Zero docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ agentzero_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Agent Zero
+
+- name: Start Agent Zero container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ agentzero_dir }}"
+    state: present
+    recreate: "{{ (agentzero_force_restart | default(false) or all_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for Agent Zero container to be running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' agent-zero
+  register: agentzero_status_res
+  until: agentzero_status_res.rc == 0 and agentzero_status_res.stdout.strip() == 'true'
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

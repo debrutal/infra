@@ -64,19 +64,19 @@ def test_traefik_docker_compose_config(host):
     assert "CF_DNS_API_TOKEN=" in content
     assert "mini.debrutal.dev" in content
     assert "*.mini.debrutal.dev" in content
+    assert "staging.kita-kit.de" in content
+    assert "*.staging.kita-kit.de" in content
     assert "host.docker.internal:host-gateway" in content
 
 
 def test_traefik_dynamic_config(host):
-    """Verify dynamic_conf.yml contains defaultGeneratedCert for *.mini.debrutal.dev and fusion router."""
+    """Verify dynamic_conf.yml contains defaultGeneratedCert for *.mini.debrutal.dev."""
     dynamic_yml = host.file("/opt/traefik/dynamic/dynamic_conf.yml")
     assert dynamic_yml.exists
     content = dynamic_yml.content_string
     assert "defaultGeneratedCert:" in content
     assert "mini.debrutal.dev" in content
     assert "*.mini.debrutal.dev" in content
-    assert "fusion.mini.debrutal.dev" in content
-    assert "host.docker.internal:4040" in content
 
 
 
@@ -168,8 +168,9 @@ def test_homepage_directory_and_compose(host):
 
     services_yml = host.file("/opt/homepage/config/services.yaml")
     assert services_yml.exists
-    assert "Fusion" in services_yml.content_string
-    assert "fusion.mini.debrutal.dev" in services_yml.content_string
+    assert "BookOrbit" in services_yml.content_string
+    assert "Pinchflat" in services_yml.content_string
+    assert "eBook2Audiobook" in services_yml.content_string
 
 
     compose_yml = host.file("/opt/homepage/docker-compose.yml")
@@ -180,17 +181,6 @@ def test_homepage_directory_and_compose(host):
     assert "homepage" in content
     assert "HOMEPAGE_ALLOWED_HOSTS" in content
     assert "kuma.homepage.http.name=" in content
-
-
-def test_fusion_systemd_service(host):
-    """Verify Fusion systemd service unit file exists."""
-    fusion_unit = host.file("/etc/systemd/system/fusion.service")
-    assert fusion_unit.exists
-    assert fusion_unit.is_file
-    content = fusion_unit.content_string
-    assert "Description=Fusion Service" in content
-    assert "ExecStart=" in content
-    assert "WantedBy=multi-user.target" in content
 
 
 def test_lgtm_directory_and_compose(host):
@@ -325,15 +315,98 @@ def test_sentry_otel_env_vars(host):
     assert "otel-collector" in content
 
 
-def test_fusion_otel_env_vars(host):
-    """Verify Fusion systemd service includes OTEL environment variables."""
-    fusion_unit = host.file("/etc/systemd/system/fusion.service")
-    assert fusion_unit.exists
-    content = fusion_unit.content_string
-    assert "OTEL_SERVICE_NAME=fusion" in content
-    assert "OTEL_EXPORTER_OTLP_ENDPOINT" in content
-    assert "OTEL_TRACES_EXPORTER=otlp" in content
+def test_agentzero_directory_and_compose(host):
+    """Verify Agent Zero containerized directory and docker-compose.yml configuration."""
+    az_dir = host.file("/opt/agentzero")
+    assert az_dir.exists
+    assert az_dir.is_directory
+
+    usr_dir = host.file("/opt/agentzero/usr")
+    assert usr_dir.exists
+    assert usr_dir.is_directory
+
+    compose_yml = host.file("/opt/agentzero/docker-compose.yml")
+    assert compose_yml.exists
+    content = compose_yml.content_string
+    assert "traefik.enable=true" in content
+    assert "agentzero.mini.debrutal.dev" in content
+    assert "agent0ai/agent-zero" in content
 
 
+def test_pinchflat_directory_and_compose(host):
+    """Verify Pinchflat containerized directory and docker-compose.yml configuration."""
+    pf_dir = host.file("/opt/pinchflat")
+    assert pf_dir.exists
+    assert pf_dir.is_directory
 
+    config_dir = host.file("/opt/pinchflat/config")
+    assert config_dir.exists
+    assert config_dir.is_directory
+
+    downloads_dir = host.file("/opt/pinchflat/downloads")
+    assert downloads_dir.exists
+    assert downloads_dir.is_directory
+
+    compose_yml = host.file("/opt/pinchflat/docker-compose.yml")
+    assert compose_yml.exists
+    content = compose_yml.content_string
+    assert "traefik.enable=true" in content
+    assert "pinchflat.mini.debrutal.dev" in content
+    assert "ghcr.io/kieraneglin/pinchflat" in content
+    assert "traefik.http.routers.pinchflat.middlewares=authentik@file" in content
+
+
+def test_ebook2audiobook_directory_and_compose(host):
+    """Verify eBook2Audiobook containerized directory and docker-compose.yml configuration."""
+    eb_dir = host.file("/opt/ebook2audiobook")
+    assert eb_dir.exists
+    assert eb_dir.is_directory
+
+    for subdir in ["ebooks", "audiobooks", "models", "voices", "tmp"]:
+        d = host.file(f"/opt/ebook2audiobook/{subdir}")
+        assert d.exists
+        assert d.is_directory
+
+    compose_yml = host.file("/opt/ebook2audiobook/docker-compose.yml")
+    assert compose_yml.exists
+    content = compose_yml.content_string
+    assert "traefik.enable=true" in content
+    assert "ebook2audiobook.mini.debrutal.dev" in content
+    assert "athomasson2/ebook2audiobook" in content
+    assert "traefik.http.routers.ebook2audiobook.middlewares=authentik@file" in content
+
+
+def test_restic_backup_setup(host):
+    """Verify Restic backup directories, configuration, scripts, and systemd units."""
+    for path in ["/backup", "/backup/dumps", "/etc/restic"]:
+        d = host.file(path)
+        assert d.exists
+        assert d.is_directory
+
+    pwd_file = host.file("/etc/restic/password")
+    assert pwd_file.exists
+    assert pwd_file.mode == 0o600
+
+    env_file = host.file("/etc/restic/env.sh")
+    assert env_file.exists
+    assert env_file.mode == 0o600
+    assert "RESTIC_REPOSITORY" in env_file.content_string
+
+    backup_sh = host.file("/usr/local/bin/restic-backup.sh")
+    assert backup_sh.exists
+    assert backup_sh.mode == 0o755
+    content = backup_sh.content_string
+    assert "authentik-db" in content
+    assert "bookorbit-db" in content
+    assert "gitea.db" in content
+    assert "restic backup" in content
+
+    cli_helper = host.file("/usr/local/bin/restic-infra")
+    assert cli_helper.exists
+    assert cli_helper.mode == 0o755
+
+    svc = host.file("/etc/systemd/system/restic-backup.service")
+    assert svc.exists
+    timer = host.file("/etc/systemd/system/restic-backup.timer")
+    assert timer.exists
 

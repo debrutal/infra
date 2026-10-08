@@ -58,6 +58,15 @@
     - ansible_connection != 'docker'
     - (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
+- name: Remove orphaned containerd storage directory from previous Docker setup
+  ansible.builtin.file:
+    path: /var/lib/containerd
+    state: absent
+  when:
+    - podman_link_docker_sock
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
 - name: Remove stale /var/run/docker.sock if regular file or unix socket
   ansible.builtin.file:
     path: /var/run/docker.sock

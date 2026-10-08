@@ -3,40 +3,45 @@
         icon: authentik
         href: "{{ authentik_site_url }}"
         description: Identity Provider & Single Sign-On
+        container: authentik-server
 
 - Infrastructure:
     - Traefik Proxy:
-
         icon: traefik
         href: "https://{{ traefik_acme_domain_main }}"
         description: Reverse Proxy & Edge Ingress
+        container: traefik
     - Homepage Dashboard:
         icon: homepage
         href: "{{ homepage_site_url }}"
         description: Central Infrastructure Dashboard
-    - Fusion:
-        icon: fusion
-        href: "{{ fusion_site_url | default('https://fusion.mini.debrutal.dev') }}"
-        description: Fusion Host Service (Port 4040)
-
+        container: homepage
 
 - Billing & Invoicing:
+    - Lago:
+        icon: lago
+        href: "{{ lago_front_url | default('https://lago.mini.debrutal.dev') }}"
+        description: Usage-Based Metering & Subscription Billing Platform
+        container: lago-front
     - Invoice Ninja:
         icon: invoiceninja
         href: "{{ invoiceninja_app_url }}"
         description: Invoicing & Expense Management
+        container: invoiceninja-app
 
 - Business Applications:
     - EspoCRM:
         icon: espocrm
         href: "{{ espocrm_site_url }}"
         description: Customer Relationship Management
+        container: espocrm-app
 
 - Monitoring & Health:
     - Uptime Kuma:
         icon: uptime-kuma
         href: "{{ uptime_kuma_site_url }}"
         description: Status Page & Health Monitoring
+        container: uptime-kuma
         widget:
           type: uptimekuma
           url: "{{ homepage_uptime_kuma_url | default('http://uptime-kuma:3001') }}"
@@ -45,11 +50,17 @@
         icon: sentry
         href: "{{ sentry_site_url }}"
         description: Application Error Tracking & Diagnostics
+        container: glitchtip-web
     - Grafana (LGTM):
         icon: grafana
         href: "{{ lgtm_site_url }}"
         description: Loki, Grafana, Tempo & Prometheus Stack
-
+        container: grafana
+    - Prometheus:
+        icon: prometheus
+        href: "https://{{ lgtm_prometheus_domain | default('prometheus.mini.debrutal.dev') }}"
+        description: Time-Series Metrics & Monitoring Backend
+        container: prometheus
 
 - Development & CI:
     - Gitea:
@@ -65,14 +76,29 @@
         container: gitea-mcp
 {% endif %}
 
-
-
 - Media & Knowledge:
     - BookOrbit:
         icon: bookorbit
-        href: "{{ bookorbit_site_url }}"
+        href: "{{ bookorbit_site_url | default('https://bookorbit.mini.debrutal.dev') }}"
         description: Self-Hosted Library & Reading Platform
         container: bookorbit-app
+    - Pinchflat:
+        icon: pinchflat
+        href: "{{ pinchflat_site_url | default('https://pinchflat.mini.debrutal.dev') }}"
+        description: YouTube Download Manager & Content Archiver
+        container: pinchflat
+    - eBook2Audiobook:
+        icon: audiobookshelf
+        href: "{{ ebook2audiobook_site_url | default('https://ebook2audiobook.mini.debrutal.dev') }}"
+        description: eBook to Audiobook TTS Conversion Platform
+        container: ebook2audiobook
+
+- AI & Automation:
+    - Agent Zero:
+        icon: agentzero
+        href: "{{ agentzero_site_url | default('https://agentzero.mini.debrutal.dev') }}"
+        description: Open Source AI Agent Framework
+        container: agent-zero
 
 - Smart Home & Automation:
     - Home Assistant:

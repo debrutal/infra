@@ -28,8 +28,10 @@ SUBDOMAINS = [
     "gitea.mini.debrutal.dev",
     "gitea-mcp.mini.debrutal.dev",
     "authentik.mini.debrutal.dev",
-
-    "fusion.mini.debrutal.dev",
+    "bookorbit.mini.debrutal.dev",
+    "agentzero.mini.debrutal.dev",
+    "pinchflat.mini.debrutal.dev",
+    "ebook2audiobook.mini.debrutal.dev",
 ]
 
 

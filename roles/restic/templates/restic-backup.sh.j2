@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Script: restic-backup.sh
+# Purpose: Automated, consistent backups for Gitea, Authentik, and BookOrbit
+#          using Restic and local storage in /backup
+# ==============================================================================
+
+set -euo pipefail
+
+# Source restic environment
+if [[ -f "{{ restic_env_file }}" ]]; then
+  # shellcheck source=/dev/null
+  source "{{ restic_env_file }}"
+else
+  echo "Error: Restic environment file {{ restic_env_file }} not found." >&2
+  exit 1
+fi
+
+DUMPS_DIR="{{ restic_dumps_dir }}"
+SUBCOMMAND="${1:-backup}"
+
+is_container_running() {
+  local name="$1"
+  if command -v docker >/dev/null 2>&1; then
+    docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -wq "^${name}$"
+  else
+    return 1
+  fi
+}
+
+dump_databases() {
+  echo "[+] Ensuring staging dumps directory exists: ${DUMPS_DIR}"
+  mkdir -p "${DUMPS_DIR}"
+  chmod 700 "${DUMPS_DIR}"
+
+  # 1. Authentik PostgreSQL database dump
+  if [[ "{{ restic_authentik_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "authentik-db"; then
+      echo "[+] Exporting Authentik database dump from authentik-db..."
+      docker exec authentik-db pg_dump -U "{{ authentik_postgres_user | default('authentik') }}" "{{ authentik_postgres_db | default('authentik') }}" > "${DUMPS_DIR}/authentik.sql"
+      chmod 600 "${DUMPS_DIR}/authentik.sql"
+      echo "[+] Authentik database dump complete ($(du -h "${DUMPS_DIR}/authentik.sql" | cut -f1))"
+    else
+      echo "[!] Notice: authentik-db container is not running, skipping database dump."
+    fi
+  fi
+
+  # 2. BookOrbit PostgreSQL database dump
+  if [[ "{{ restic_bookorbit_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "bookorbit-db"; then
+      echo "[+] Exporting BookOrbit database dump from bookorbit-db..."
+      docker exec bookorbit-db pg_dump -U "{{ bookorbit_db_user | default('bookorbit') }}" "{{ bookorbit_db_name | default('bookorbit') }}" > "${DUMPS_DIR}/bookorbit.sql"
+      chmod 600 "${DUMPS_DIR}/bookorbit.sql"
+      echo "[+] BookOrbit database dump complete ($(du -h "${DUMPS_DIR}/bookorbit.sql" | cut -f1))"
+    else
+      echo "[!] Notice: bookorbit-db container is not running, skipping database dump."
+    fi
+  fi
+
+  # 3. Gitea SQLite atomic hot-backup
+  if [[ "{{ restic_gitea_enabled | default(true) | string | lower }}" == "true" ]]; then
+    local gitea_db="/opt/gitea/data/gitea/gitea.db"
+    if [[ -f "${gitea_db}" ]]; then
+      echo "[+] Performing atomic SQLite hot-backup for Gitea database..."
+      if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "${gitea_db}" ".backup '${DUMPS_DIR}/gitea-sqlite.db'"
+        chmod 600 "${DUMPS_DIR}/gitea-sqlite.db"
+        echo "[+] Gitea SQLite dump complete ($(du -h "${DUMPS_DIR}/gitea-sqlite.db" | cut -f1))"
+      elif is_container_running "gitea"; then
+        docker exec gitea sqlite3 /data/gitea/gitea.db ".backup '/data/gitea.db.bak'"
+        mv /opt/gitea/data/gitea.db.bak "${DUMPS_DIR}/gitea-sqlite.db"
+        chmod 600 "${DUMPS_DIR}/gitea-sqlite.db"
+        echo "[+] Gitea SQLite dump via container complete ($(du -h "${DUMPS_DIR}/gitea-sqlite.db" | cut -f1))"
+      fi
+    else
+      echo "[!] Notice: Gitea database ${gitea_db} not found on disk, skipping."
+    fi
+  fi
+}
+
+run_backup() {
+  dump_databases
+
+  local backup_paths=()
+  if [[ -d "${DUMPS_DIR}" ]]; then
+    backup_paths+=("${DUMPS_DIR}")
+  fi
+
+  if [[ "{{ restic_gitea_enabled | default(true) | string | lower }}" == "true" && -d "/opt/gitea" ]]; then
+    backup_paths+=("/opt/gitea")
+  fi
+
+  if [[ "{{ restic_authentik_enabled | default(true) | string | lower }}" == "true" && -d "/opt/authentik" ]]; then
+    backup_paths+=("/opt/authentik")
+  fi
+
+  if [[ "{{ restic_bookorbit_enabled | default(true) | string | lower }}" == "true" && -d "/opt/bookorbit" ]]; then
+    backup_paths+=("/opt/bookorbit")
+  fi
+
+  if [[ {% raw %}${#backup_paths[@]}{% endraw %} -eq 0 ]]; then
+    echo "[!] No paths exist to back up. Exiting cleanly."
+    exit 0
+  fi
+
+  echo "[+] Running Restic backup for paths: ${backup_paths[*]}"
+  restic backup \
+    "${backup_paths[@]}" \
+    --tag gitea \
+    --tag authentik \
+    --tag bookorbit \
+    --tag automated \
+    --exclude "/opt/authentik/redis" \
+    --exclude "/opt/authentik/postgres" \
+    --exclude "/opt/bookorbit/data/postgres" \
+    --exclude "*.tmp" \
+    --exclude "*.log"
+
+  echo "[+] Applying retention policy (keep daily: {{ restic_keep_daily }}, weekly: {{ restic_keep_weekly }}, monthly: {{ restic_keep_monthly }})..."
+  restic forget \
+    --keep-daily {{ restic_keep_daily }} \
+    --keep-weekly {{ restic_keep_weekly }} \
+    --keep-monthly {{ restic_keep_monthly }} \
+    --prune
+
+  echo "[+] Verifying repository integrity with restic check..."
+  restic check --quick
+
+  echo "[✓] Restic backup run finished successfully!"
+}
+
+case "${SUBCOMMAND}" in
+  backup)
+    run_backup
+    ;;
+  snapshots|list)
+    shift || true
+    restic snapshots "$@"
+    ;;
+  check)
+    shift || true
+    restic check "$@"
+    ;;
+  stats)
+    shift || true
+    restic stats "$@"
+    ;;
+  restore)
+    shift || true
+    target_snapshot="${1:-latest}"
+    target_dir="${2:-/restore}"
+    echo "[+] Restoring snapshot ${target_snapshot} to ${target_dir}..."
+    mkdir -p "${target_dir}"
+    restic restore "${target_snapshot}" --target "${target_dir}"
+    ;;
+  *)
+    echo "Usage: $0 {backup|snapshots|check|stats|restore <snapshot_id> <target_dir>}"
+    exit 1
+    ;;
+esac

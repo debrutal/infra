@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CERT_DIR="{{ traefik_dir }}/certs"
+mkdir -p "$CERT_DIR"
+
+if [ ! -f "$CERT_DIR/certificates/staging.kita-kit.de.crt" ]; then
+    echo "[+] Obtaining initial wildcard certificate for *.staging.kita-kit.de..."
+    docker run --rm \
+        -v "$CERT_DIR:/certs" \
+        -e "CF_DNS_API_TOKEN={{ traefik_acme_kitakit_token }}" \
+        goacme/lego:latest \
+        run \
+        --accept-tos \
+        --email "{{ traefik_acme_email }}" \
+        --dns cloudflare \
+        --dns.resolvers 1.1.1.1:53 \
+        --dns.resolvers 1.0.0.1:53 \
+        -d "staging.kita-kit.de" \
+        -d "*.staging.kita-kit.de" \
+        --path "/certs"
+    chmod -R a+rX "$CERT_DIR" 2>/dev/null || true
+else
+    echo "[+] Checking renewal for *.staging.kita-kit.de..."
+    docker run --rm \
+        -v "$CERT_DIR:/certs" \
+        -e "CF_DNS_API_TOKEN={{ traefik_acme_kitakit_token }}" \
+        goacme/lego:latest \
+        renew \
+        --days 30 \
+        --email "{{ traefik_acme_email }}" \
+        --dns cloudflare \
+        --dns.resolvers 1.1.1.1:53 \
+        --dns.resolvers 1.0.0.1:53 \
+        -d "staging.kita-kit.de" \
+        -d "*.staging.kita-kit.de" \
+        --path "/certs"
+    chmod -R a+rX "$CERT_DIR" 2>/dev/null || true
+fi

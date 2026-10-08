@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily renewal check for kita-kit.de wildcard certificate
+After=network.target
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

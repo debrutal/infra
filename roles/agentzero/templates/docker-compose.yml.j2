@@ -1,0 +1,49 @@
+services:
+  agent-zero:
+    image: agent0ai/agent-zero:{{ agentzero_version }}
+    container_name: agent-zero
+    restart: always
+{% if (agentzero_auth_login | default('')) | length > 0 and (agentzero_auth_password | default('')) | length > 0 %}
+    environment:
+      - AUTH_LOGIN={{ agentzero_auth_login }}
+      - AUTH_PASSWORD={{ agentzero_auth_password }}
+{% endif %}
+    volumes:
+      - {{ agentzero_data_dir }}:/a0/usr
+{% if agentzero_docker_socket_enabled | default(false) %}
+      - /var/run/docker.sock:/var/run/docker.sock
+{% endif %}
+{% if agentzero_host_port is defined and agentzero_host_port %}
+    ports:
+      - "{{ agentzero_host_port }}:80"
+{% endif %}
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.agentzero.rule=Host(`{{ agentzero_domain }}`)"
+      - "traefik.http.routers.agentzero.entrypoints={{ agentzero_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.agentzero.tls=true"
+{% if agentzero_traefik_certresolver is defined and agentzero_traefik_certresolver %}
+      - "traefik.http.routers.agentzero.tls.certresolver={{ agentzero_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if agentzero_authentik_enabled | default(false) %}
+      - "traefik.http.routers.agentzero.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.agentzero.loadbalancer.server.port={{ agentzero_port }}"
+      - "kuma.agentzero.http.name=Agent Zero"
+      - "kuma.agentzero.http.url=http://agent-zero:{{ agentzero_port }}"
+      - "homepage.group=AI & Automation"
+      - "homepage.name=Agent Zero"
+      - "homepage.icon=agentzero"
+      - "homepage.href={{ agentzero_site_url }}"
+      - "homepage.description=Agent Zero AI Framework"
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ agentzero_traefik_network }}

@@ -1,0 +1,30 @@
+---
+pinchflat_dir: "/opt/pinchflat"
+pinchflat_version: "latest"
+pinchflat_traefik_network: "{{ traefik_network_name }}"
+pinchflat_traefik_certresolver: ""
+pinchflat_traefik_entrypoints: "websecure"
+pinchflat_domain: "pinchflat.mini.debrutal.dev"
+pinchflat_site_url: "https://{{ pinchflat_domain }}"
+pinchflat_port: 8945
+pinchflat_host_port: ""
+pinchflat_timezone: "Europe/Berlin"
+pinchflat_log_level: "debug"
+
+# User authentication (Web UI basic auth)
+pinchflat_auth_username: "{{ vault_pinchflat_auth_username | default(default_admin_username) }}"
+pinchflat_auth_password: "{{ vault_pinchflat_auth_password | default(default_admin_password) }}"
+
+# Data persistence directories
+pinchflat_config_dir: "{{ pinchflat_dir }}/config"
+pinchflat_downloads_dir: "{{ pinchflat_dir }}/downloads"
+
+# Worker concurrency & Prometheus metrics
+pinchflat_worker_concurrency: 2
+pinchflat_enable_prometheus: false
+
+# Authentik Forward Auth (enabled by default)
+pinchflat_authentik_enabled: true
+
+# Force restart flag
+pinchflat_force_restart: false

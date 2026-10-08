@@ -1,0 +1,49 @@
+services:
+  ebook2audiobook:
+    image: {{ ebook2audiobook_image }}:{{ ebook2audiobook_version }}
+    container_name: ebook2audiobook
+    restart: always
+    environment:
+      - TZ={{ ebook2audiobook_timezone }}
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT={{ ebook2audiobook_port }}
+    volumes:
+      - {{ ebook2audiobook_ebooks_dir }}:/app/ebooks
+      - {{ ebook2audiobook_audiobooks_dir }}:/app/audiobooks
+      - {{ ebook2audiobook_models_dir }}:/app/models
+      - {{ ebook2audiobook_voices_dir }}:/app/voices
+      - {{ ebook2audiobook_tmp_dir }}:/app/tmp
+{% if ebook2audiobook_host_port is defined and ebook2audiobook_host_port %}
+    ports:
+      - "{{ ebook2audiobook_host_port }}:{{ ebook2audiobook_port }}"
+{% endif %}
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ebook2audiobook.rule=Host(`{{ ebook2audiobook_domain }}`)"
+      - "traefik.http.routers.ebook2audiobook.entrypoints={{ ebook2audiobook_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.ebook2audiobook.tls=true"
+{% if ebook2audiobook_traefik_certresolver is defined and ebook2audiobook_traefik_certresolver %}
+      - "traefik.http.routers.ebook2audiobook.tls.certresolver={{ ebook2audiobook_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if ebook2audiobook_authentik_enabled | default(true) %}
+      - "traefik.http.routers.ebook2audiobook.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.ebook2audiobook.loadbalancer.server.port={{ ebook2audiobook_port }}"
+      - "kuma.ebook2audiobook.http.name=eBook2Audiobook"
+      - "kuma.ebook2audiobook.http.url=http://ebook2audiobook:{{ ebook2audiobook_port }}"
+      - "homepage.group=Media & Knowledge"
+      - "homepage.name=eBook2Audiobook"
+      - "homepage.icon=audiobookshelf"
+      - "homepage.href={{ ebook2audiobook_site_url }}"
+      - "homepage.description=eBook to Audiobook TTS Conversion"
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ ebook2audiobook_traefik_network }}

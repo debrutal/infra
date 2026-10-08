@@ -13,6 +13,13 @@ traefik_acme_enabled: true
 traefik_acme_domain_main: "mini.debrutal.dev"
 traefik_acme_domain_sans:
   - "*.mini.debrutal.dev"
+traefik_acme_domains:
+  - main: "{{ traefik_acme_domain_main }}"
+    sans: "{{ traefik_acme_domain_sans }}"
+  - main: "staging.kita-kit.de"
+    sans:
+      - "*.staging.kita-kit.de"
+traefik_acme_kitakit_token: "{{ vault_cf_dns_api_token_kitakit | default('') }}"
 traefik_alias_headers_strategy: "delete"
 traefik_encoded_characters_allow_slash: false
 traefik_encoded_characters_allow_backslash: false
@@ -32,10 +39,6 @@ traefik_acme_dns_env:
   CLOUDFLARE_DNS_API_TOKEN: "your-cloudflare-api-token-here"
   CF_ZONE_API_TOKEN: "your-cloudflare-api-token-here"
   CLOUDFLARE_ZONE_API_TOKEN: "your-cloudflare-api-token-here"
-
-traefik_fusion_enabled: true
-traefik_fusion_domain: "fusion.mini.debrutal.dev"
-traefik_fusion_target_port: 4040
 
 traefik_force_restart: false
 traefik_reset_acme: false

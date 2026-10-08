@@ -19,5 +19,8 @@ homepage_allowed_hosts: "{{ [
 homepage_uptime_kuma_url: "http://uptime-kuma:3001"
 homepage_uptime_kuma_slug: "{{ uptime_kuma_status_slug | default('default') }}"
 homepage_home_assistant_url: "http://homeassistant.local:8123"
-fusion_domain: "fusion.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
-fusion_site_url: "https://{{ fusion_domain }}"  # noqa: var-naming[no-role-prefix]
+lago_front_url: "https://lago.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+bookorbit_site_url: "https://bookorbit.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+agentzero_site_url: "https://agentzero.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+pinchflat_site_url: "https://pinchflat.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+ebook2audiobook_site_url: "https://ebook2audiobook.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
