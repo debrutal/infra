@@ -71,7 +71,7 @@ services:
 {% endif %}
       - "traefik.http.services.invoiceninja.loadbalancer.server.port=80"
       - "kuma.invoiceninja.http.name=Invoice Ninja"
-      - "kuma.invoiceninja.http.url=http://invoiceninja-server:80"
+      - "kuma.invoiceninja.http.url=https://{{ invoiceninja_domain }}"
       - "homepage.group=Billing & Invoicing"
       - "homepage.name=Invoice Ninja"
       - "homepage.icon=invoiceninja"

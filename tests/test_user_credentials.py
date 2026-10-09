@@ -182,11 +182,18 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             sh_content = f.read()
         self.assertIn("authentik-db", sh_content)
         self.assertIn("bookorbit-db", sh_content)
+        self.assertIn("espocrm-db", sh_content)
+        self.assertIn("invoiceninja-db", sh_content)
+        self.assertIn("sentry-postgres", sh_content)
+        self.assertIn("lago-db", sh_content)
         self.assertIn("gitea.db", sh_content)
         self.assertIn("restic backup", sh_content)
-        self.assertIn("--tag gitea", sh_content)
-        self.assertIn("--tag authentik", sh_content)
-        self.assertIn("--tag bookorbit", sh_content)
+        self.assertIn('"--tag" "gitea"', sh_content)
+        self.assertIn('"--tag" "authentik"', sh_content)
+        self.assertIn('"--tag" "bookorbit"', sh_content)
+        self.assertIn('"--tag" "espocrm"', sh_content)
+        self.assertIn('"--tag" "invoiceninja"', sh_content)
+        self.assertIn('"--tag" "sentry"', sh_content)
 
         # Verify systemd service & timer templates
         svc_path = os.path.join(WORKSPACE_DIR, "roles", "restic", "templates", "restic-backup.service.j2")
@@ -206,6 +213,25 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             restic_bookorbit_enabled=True,
             bookorbit_db_user="bookorbit",
             bookorbit_db_name="bookorbit",
+            restic_espocrm_enabled=True,
+            espocrm_db_user="espocrm",
+            espocrm_db_password="changeme",
+            espocrm_db_name="espocrm",
+            restic_invoiceninja_enabled=True,
+            invoiceninja_db_user="ninja",
+            invoiceninja_db_password="changeme",
+            invoiceninja_db_name="ninja",
+            restic_sentry_enabled=True,
+            sentry_db_user="sentry",
+            sentry_db_name="sentry",
+            restic_lago_enabled=True,
+            lago_postgres_user="lago",
+            lago_postgres_db="lago",
+            restic_uptime_kuma_enabled=True,
+            restic_pinchflat_enabled=True,
+            restic_traefik_enabled=True,
+            restic_homepage_enabled=True,
+            restic_agentzero_enabled=True,
             restic_gitea_enabled=True,
             restic_keep_daily=7,
             restic_keep_weekly=4,
@@ -324,6 +350,36 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         rendered_traefik = env.from_string(traefik_tpl).render(multi_vars)
         self.assertIn('main: "mini.debrutal.dev"', rendered_traefik)
         self.assertNotIn('main: "staging.kita-kit.de"', rendered_traefik)
+
+    def test_container_improvements(self):
+        """Verify bug fixes and improvements from container audit."""
+        # 1. Homepage allowed hosts include internal container names
+        homepage_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "homepage", "defaults", "main.yml")
+        with open(homepage_defaults_path, "r") as f:
+            hp_defaults = f.read()
+        self.assertIn("'homepage'", hp_defaults)
+        self.assertIn("'homepage:3000'", hp_defaults)
+        self.assertIn("'homepage'", self.all_vars.get("homepage_allowed_hosts", ""))
+        self.assertIn("'homepage:3000'", self.all_vars.get("homepage_allowed_hosts", ""))
+
+        # 2. LGTM telemetry disabled
+        with open(os.path.join(WORKSPACE_DIR, "roles", "lgtm", "templates", "loki-config.yaml.j2"), "r") as f:
+            loki_cfg = f.read()
+        self.assertIn("reporting_enabled: false", loki_cfg)
+
+        with open(os.path.join(WORKSPACE_DIR, "roles", "lgtm", "templates", "tempo-config.yaml.j2"), "r") as f:
+            tempo_cfg = f.read()
+        self.assertIn("reporting_enabled: false", tempo_cfg)
+
+        # 3. Traefik forwardAuth maxResponseBodySize configured
+        with open(os.path.join(WORKSPACE_DIR, "roles", "traefik", "templates", "dynamic_conf.yml.j2"), "r") as f:
+            dyn_cfg = f.read()
+        self.assertIn("maxResponseBodySize: 1048576", dyn_cfg)
+
+        # 4. Invoice Ninja Kuma URL uses HTTPS domain
+        with open(os.path.join(WORKSPACE_DIR, "roles", "invoiceninja", "templates", "docker-compose.yml.j2"), "r") as f:
+            inv_cfg = f.read()
+        self.assertIn("kuma.invoiceninja.http.url=https://{{ invoiceninja_domain }}", inv_cfg)
 
 
 if __name__ == "__main__":

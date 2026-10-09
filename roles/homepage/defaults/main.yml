@@ -10,6 +10,8 @@ homepage_allowed_hosts: "{{ [
   homepage_domain,
   homepage_domain ~ ':443',
   homepage_domain ~ ':80',
+  'homepage',
+  'homepage:3000',
   'dashboard.mini.debrutal.dev',
   'dashboard.mini.debrutal.dev:443',
   'dashboard.mini.debrutal.dev:80',

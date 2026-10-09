@@ -105,16 +105,23 @@ This chapter documents each Ansible role, its task flow, Jinja2 templates, and h
   - AutoKuma health monitoring and Homepage dashboard integration under Media & Knowledge.
 
 ## 18. `restic` Role (Automated Backups)
-- **Purpose**: Provides automated, deduplicated, and encrypted backups for key components (Gitea, Authentik, BookOrbit) using Restic with local storage in `/backup`.
+- **Purpose**: Provides automated, deduplicated, and encrypted backups for infrastructure components and databases using Restic with local storage in `/backup`.
 - **Target Repository**: `/backup/restic`
 - **Staging Dumps Directory**: `/backup/dumps`
 - **Key Features**:
   - Installs `restic` and `sqlite3` packages.
+  - Runtime abstraction supporting both **Podman** and **Docker** engines.
   - Safe, consistent database exports:
-    - **Authentik**: `pg_dump` of PostgreSQL database (`authentik`).
-    - **BookOrbit**: `pg_dump` of PostgreSQL database (`bookorbit`).
+    - **Authentik**: `pg_dump` of PostgreSQL database (`authentik-db`).
+    - **BookOrbit**: `pg_dump` of PostgreSQL database (`bookorbit-db`).
+    - **Sentry / GlitchTip**: `pg_dump` of PostgreSQL database (`sentry-postgres`).
+    - **Lago**: `pg_dump` of PostgreSQL database (`lago-db`).
+    - **EspoCRM**: `mariadb-dump` of MariaDB database (`espocrm-db`).
+    - **Invoice Ninja**: `mariadb-dump` of MariaDB database (`invoiceninja-db`).
     - **Gitea**: Atomic SQLite `.backup` hot-dump of `/opt/gitea/data/gitea/gitea.db`.
-  - Comprehensive Restic backup of database dumps and persistent application directories (`/opt/gitea`, `/opt/authentik`, `/opt/bookorbit`), excluding ephemeral/recreatable cache and raw database storage.
+    - **Uptime Kuma**: Atomic SQLite `.backup` hot-dump of `kuma.db` from volume.
+    - **Pinchflat**: Atomic SQLite `.backup` hot-dump of `/opt/pinchflat/config/db/pinchflat.db`.
+  - Comprehensive Restic backup of database dumps and persistent application directories (`/backup/dumps`, `/opt/traefik`, `/opt/gitea`, `/opt/authentik`, `/opt/bookorbit`, `/opt/espocrm`, `/opt/invoiceninja`, `/opt/sentry`, `/opt/lago`, `/opt/uptime-kuma`, `/opt/pinchflat/config`, `/opt/homepage`, `/opt/agentzero`), excluding ephemeral cache, media downloads, and raw database storage.
   - Retention & pruning policy: `--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`.
   - Automated systemd timer (`restic-backup.timer`) scheduled daily at 03:00.
   - Administrative CLI wrapper `/usr/local/bin/restic-infra` for one-command inspection (`sudo restic-infra snapshots`, `sudo restic-infra check`).

@@ -24,3 +24,12 @@ restic_packages:
 restic_gitea_enabled: true
 restic_authentik_enabled: true
 restic_bookorbit_enabled: true
+restic_espocrm_enabled: true
+restic_invoiceninja_enabled: true
+restic_sentry_enabled: true
+restic_lago_enabled: true
+restic_uptime_kuma_enabled: true
+restic_pinchflat_enabled: true
+restic_traefik_enabled: true
+restic_homepage_enabled: true
+restic_agentzero_enabled: true

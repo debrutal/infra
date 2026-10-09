@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Script: restic-backup.sh
-# Purpose: Automated, consistent backups for Gitea, Authentik, and BookOrbit
-#          using Restic and local storage in /backup
+# Purpose: Automated, consistent backups for Minisforum infrastructure services
+#          and databases using Restic and local storage in /backup
 # ==============================================================================
 
 set -euo pipefail
@@ -19,13 +19,25 @@ fi
 DUMPS_DIR="{{ restic_dumps_dir }}"
 SUBCOMMAND="${1:-backup}"
 
+# Container runtime detection (prefers podman, falls back to docker)
+CONTAINER_CLI=""
+if command -v podman >/dev/null 2>&1; then
+  CONTAINER_CLI="podman"
+elif command -v docker >/dev/null 2>&1; then
+  CONTAINER_CLI="docker"
+fi
+
 is_container_running() {
   local name="$1"
-  if command -v docker >/dev/null 2>&1; then
-    docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -wq "^${name}$"
+  if [[ -n "${CONTAINER_CLI}" ]]; then
+    "${CONTAINER_CLI}" ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -wq "^${name}$"
   else
     return 1
   fi
+}
+
+container_exec() {
+  "${CONTAINER_CLI}" exec "$@"
 }
 
 dump_databases() {
@@ -37,7 +49,7 @@ dump_databases() {
   if [[ "{{ restic_authentik_enabled | default(true) | string | lower }}" == "true" ]]; then
     if is_container_running "authentik-db"; then
       echo "[+] Exporting Authentik database dump from authentik-db..."
-      docker exec authentik-db pg_dump -U "{{ authentik_postgres_user | default('authentik') }}" "{{ authentik_postgres_db | default('authentik') }}" > "${DUMPS_DIR}/authentik.sql"
+      container_exec authentik-db pg_dump -U "{{ authentik_postgres_user | default('authentik') }}" "{{ authentik_postgres_db | default('authentik') }}" > "${DUMPS_DIR}/authentik.sql"
       chmod 600 "${DUMPS_DIR}/authentik.sql"
       echo "[+] Authentik database dump complete ($(du -h "${DUMPS_DIR}/authentik.sql" | cut -f1))"
     else
@@ -49,7 +61,7 @@ dump_databases() {
   if [[ "{{ restic_bookorbit_enabled | default(true) | string | lower }}" == "true" ]]; then
     if is_container_running "bookorbit-db"; then
       echo "[+] Exporting BookOrbit database dump from bookorbit-db..."
-      docker exec bookorbit-db pg_dump -U "{{ bookorbit_db_user | default('bookorbit') }}" "{{ bookorbit_db_name | default('bookorbit') }}" > "${DUMPS_DIR}/bookorbit.sql"
+      container_exec bookorbit-db pg_dump -U "{{ bookorbit_db_user | default('bookorbit') }}" "{{ bookorbit_db_name | default('bookorbit') }}" > "${DUMPS_DIR}/bookorbit.sql"
       chmod 600 "${DUMPS_DIR}/bookorbit.sql"
       echo "[+] BookOrbit database dump complete ($(du -h "${DUMPS_DIR}/bookorbit.sql" | cut -f1))"
     else
@@ -57,7 +69,55 @@ dump_databases() {
     fi
   fi
 
-  # 3. Gitea SQLite atomic hot-backup
+  # 3. Sentry (GlitchTip) PostgreSQL database dump
+  if [[ "{{ restic_sentry_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "sentry-postgres"; then
+      echo "[+] Exporting Sentry database dump from sentry-postgres..."
+      container_exec sentry-postgres pg_dump -U "{{ sentry_db_user | default('sentry') }}" "{{ sentry_db_name | default('sentry') }}" > "${DUMPS_DIR}/sentry.sql"
+      chmod 600 "${DUMPS_DIR}/sentry.sql"
+      echo "[+] Sentry database dump complete ($(du -h "${DUMPS_DIR}/sentry.sql" | cut -f1))"
+    else
+      echo "[!] Notice: sentry-postgres container is not running, skipping database dump."
+    fi
+  fi
+
+  # 4. Lago PostgreSQL database dump
+  if [[ "{{ restic_lago_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "lago-db"; then
+      echo "[+] Exporting Lago database dump from lago-db..."
+      container_exec lago-db pg_dump -U "{{ lago_postgres_user | default('lago') }}" "{{ lago_postgres_db | default('lago') }}" > "${DUMPS_DIR}/lago.sql"
+      chmod 600 "${DUMPS_DIR}/lago.sql"
+      echo "[+] Lago database dump complete ($(du -h "${DUMPS_DIR}/lago.sql" | cut -f1))"
+    else
+      echo "[!] Notice: lago-db container is not running, skipping database dump."
+    fi
+  fi
+
+  # 5. EspoCRM MariaDB database dump
+  if [[ "{{ restic_espocrm_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "espocrm-db"; then
+      echo "[+] Exporting EspoCRM database dump from espocrm-db..."
+      container_exec espocrm-db mariadb-dump -u "{{ espocrm_db_user | default('espocrm') }}" -p"{{ espocrm_db_password | default('changeme') }}" "{{ espocrm_db_name | default('espocrm') }}" > "${DUMPS_DIR}/espocrm.sql"
+      chmod 600 "${DUMPS_DIR}/espocrm.sql"
+      echo "[+] EspoCRM database dump complete ($(du -h "${DUMPS_DIR}/espocrm.sql" | cut -f1))"
+    else
+      echo "[!] Notice: espocrm-db container is not running, skipping database dump."
+    fi
+  fi
+
+  # 6. Invoice Ninja MariaDB database dump
+  if [[ "{{ restic_invoiceninja_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "invoiceninja-db"; then
+      echo "[+] Exporting Invoice Ninja database dump from invoiceninja-db..."
+      container_exec invoiceninja-db mariadb-dump -u "{{ invoiceninja_db_user | default('ninja') }}" -p"{{ invoiceninja_db_password | default('changeme') }}" "{{ invoiceninja_db_name | default('ninja') }}" > "${DUMPS_DIR}/invoiceninja.sql"
+      chmod 600 "${DUMPS_DIR}/invoiceninja.sql"
+      echo "[+] Invoice Ninja database dump complete ($(du -h "${DUMPS_DIR}/invoiceninja.sql" | cut -f1))"
+    else
+      echo "[!] Notice: invoiceninja-db container is not running, skipping database dump."
+    fi
+  fi
+
+  # 7. Gitea SQLite atomic hot-backup
   if [[ "{{ restic_gitea_enabled | default(true) | string | lower }}" == "true" ]]; then
     local gitea_db="/opt/gitea/data/gitea/gitea.db"
     if [[ -f "${gitea_db}" ]]; then
@@ -67,7 +127,7 @@ dump_databases() {
         chmod 600 "${DUMPS_DIR}/gitea-sqlite.db"
         echo "[+] Gitea SQLite dump complete ($(du -h "${DUMPS_DIR}/gitea-sqlite.db" | cut -f1))"
       elif is_container_running "gitea"; then
-        docker exec gitea sqlite3 /data/gitea/gitea.db ".backup '/data/gitea.db.bak'"
+        container_exec gitea sqlite3 /data/gitea/gitea.db ".backup '/data/gitea.db.bak'"
         mv /opt/gitea/data/gitea.db.bak "${DUMPS_DIR}/gitea-sqlite.db"
         chmod 600 "${DUMPS_DIR}/gitea-sqlite.db"
         echo "[+] Gitea SQLite dump via container complete ($(du -h "${DUMPS_DIR}/gitea-sqlite.db" | cut -f1))"
@@ -76,26 +136,112 @@ dump_databases() {
       echo "[!] Notice: Gitea database ${gitea_db} not found on disk, skipping."
     fi
   fi
+
+  # 8. Uptime Kuma SQLite atomic hot-backup
+  if [[ "{{ restic_uptime_kuma_enabled | default(true) | string | lower }}" == "true" ]]; then
+    local kuma_mount=""
+    if [[ -n "${CONTAINER_CLI}" ]]; then
+      kuma_mount="$("${CONTAINER_CLI}" volume inspect uptime-kuma_uptime_kuma_data --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null || true)"
+    fi
+    local kuma_db="${kuma_mount}/kuma.db"
+    if [[ -f "${kuma_db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+      echo "[+] Performing atomic SQLite hot-backup for Uptime Kuma database..."
+      sqlite3 "${kuma_db}" ".backup '${DUMPS_DIR}/uptime-kuma-sqlite.db'"
+      chmod 600 "${DUMPS_DIR}/uptime-kuma-sqlite.db"
+      echo "[+] Uptime Kuma SQLite dump complete ($(du -h "${DUMPS_DIR}/uptime-kuma-sqlite.db" | cut -f1))"
+    else
+      echo "[!] Notice: Uptime Kuma database not found, skipping."
+    fi
+  fi
+
+  # 9. Pinchflat SQLite atomic hot-backup
+  if [[ "{{ restic_pinchflat_enabled | default(true) | string | lower }}" == "true" ]]; then
+    local pinchflat_db="/opt/pinchflat/config/db/pinchflat.db"
+    if [[ -f "${pinchflat_db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+      echo "[+] Performing atomic SQLite hot-backup for Pinchflat database..."
+      sqlite3 "${pinchflat_db}" ".backup '${DUMPS_DIR}/pinchflat-sqlite.db'"
+      chmod 600 "${DUMPS_DIR}/pinchflat-sqlite.db"
+      echo "[+] Pinchflat SQLite dump complete ($(du -h "${DUMPS_DIR}/pinchflat-sqlite.db" | cut -f1))"
+    else
+      echo "[!] Notice: Pinchflat database not found, skipping."
+    fi
+  fi
 }
 
 run_backup() {
   dump_databases
 
   local backup_paths=()
+  local backup_tags=("--tag" "infra" "--tag" "automated")
+
   if [[ -d "${DUMPS_DIR}" ]]; then
     backup_paths+=("${DUMPS_DIR}")
+    backup_tags+=("--tag" "dumps")
+  fi
+
+  if [[ "{{ restic_traefik_enabled | default(true) | string | lower }}" == "true" && -d "/opt/traefik" ]]; then
+    backup_paths+=("/opt/traefik")
+    backup_tags+=("--tag" "traefik")
   fi
 
   if [[ "{{ restic_gitea_enabled | default(true) | string | lower }}" == "true" && -d "/opt/gitea" ]]; then
     backup_paths+=("/opt/gitea")
+    backup_tags+=("--tag" "gitea")
   fi
 
   if [[ "{{ restic_authentik_enabled | default(true) | string | lower }}" == "true" && -d "/opt/authentik" ]]; then
     backup_paths+=("/opt/authentik")
+    backup_tags+=("--tag" "authentik")
   fi
 
   if [[ "{{ restic_bookorbit_enabled | default(true) | string | lower }}" == "true" && -d "/opt/bookorbit" ]]; then
     backup_paths+=("/opt/bookorbit")
+    backup_tags+=("--tag" "bookorbit")
+  fi
+
+  if [[ "{{ restic_espocrm_enabled | default(true) | string | lower }}" == "true" && -d "/opt/espocrm" ]]; then
+    backup_paths+=("/opt/espocrm")
+    backup_tags+=("--tag" "espocrm")
+  fi
+
+  if [[ "{{ restic_invoiceninja_enabled | default(true) | string | lower }}" == "true" && -d "/opt/invoiceninja" ]]; then
+    backup_paths+=("/opt/invoiceninja")
+    backup_tags+=("--tag" "invoiceninja")
+  fi
+
+  if [[ "{{ restic_sentry_enabled | default(true) | string | lower }}" == "true" && -d "/opt/sentry" ]]; then
+    backup_paths+=("/opt/sentry")
+    backup_tags+=("--tag" "sentry")
+  fi
+
+  if [[ "{{ restic_lago_enabled | default(true) | string | lower }}" == "true" && -d "/opt/lago" ]]; then
+    backup_paths+=("/opt/lago")
+    backup_tags+=("--tag" "lago")
+  fi
+
+  if [[ "{{ restic_uptime_kuma_enabled | default(true) | string | lower }}" == "true" && -d "/opt/uptime-kuma" ]]; then
+    backup_paths+=("/opt/uptime-kuma")
+    backup_tags+=("--tag" "uptime_kuma")
+  fi
+
+  if [[ "{{ restic_pinchflat_enabled | default(true) | string | lower }}" == "true" && -d "/opt/pinchflat/config" ]]; then
+    backup_paths+=("/opt/pinchflat/config")
+    backup_tags+=("--tag" "pinchflat")
+  fi
+
+  if [[ "{{ restic_homepage_enabled | default(true) | string | lower }}" == "true" && -d "/opt/homepage" ]]; then
+    backup_paths+=("/opt/homepage")
+    backup_tags+=("--tag" "homepage")
+  fi
+
+  if [[ "{{ restic_agentzero_enabled | default(true) | string | lower }}" == "true" && -d "/opt/agentzero" ]]; then
+    backup_paths+=("/opt/agentzero")
+    backup_tags+=("--tag" "agentzero")
+  fi
+
+  if [[ -d "/opt/ebook2audiobook" ]]; then
+    backup_paths+=("/opt/ebook2audiobook")
+    backup_tags+=("--tag" "ebook2audiobook")
   fi
 
   if [[ {% raw %}${#backup_paths[@]}{% endraw %} -eq 0 ]]; then
@@ -106,15 +252,14 @@ run_backup() {
   echo "[+] Running Restic backup for paths: ${backup_paths[*]}"
   restic backup \
     "${backup_paths[@]}" \
-    --tag gitea \
-    --tag authentik \
-    --tag bookorbit \
-    --tag automated \
+    "${backup_tags[@]}" \
     --exclude "/opt/authentik/redis" \
     --exclude "/opt/authentik/postgres" \
     --exclude "/opt/bookorbit/data/postgres" \
+    --exclude "/opt/pinchflat/downloads" \
     --exclude "*.tmp" \
-    --exclude "*.log"
+    --exclude "*.log" \
+    --exclude "*.sock"
 
   echo "[+] Applying retention policy (keep daily: {{ restic_keep_daily }}, weekly: {{ restic_keep_weekly }}, monthly: {{ restic_keep_monthly }})..."
   restic forget \
@@ -124,7 +269,7 @@ run_backup() {
     --prune
 
   echo "[+] Verifying repository integrity with restic check..."
-  restic check --quick
+  restic check
 
   echo "[✓] Restic backup run finished successfully!"
 }
