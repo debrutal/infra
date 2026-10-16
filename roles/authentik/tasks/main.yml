@@ -53,8 +53,8 @@
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Configure Authentik ForwardAuth and OIDC Providers for applications
-  ansible.builtin.command: >
-    docker exec authentik-server ak shell -c "
+  ansible.builtin.shell: |
+    docker exec -i authentik-server ak shell << 'EOF'
     from authentik.providers.proxy.models import ProxyProvider, ProxyMode;
     from authentik.providers.oauth2.models import OAuth2Provider, ClientTypes, RedirectURI, ScopeMapping;
     from authentik.core.models import Application;
@@ -129,6 +129,27 @@
         outpost.providers.add(eb_provider);
         outpost.save();
 
+    in_provider, _ = ProxyProvider.objects.get_or_create(
+        name='Invoice Ninja ForwardAuth',
+        defaults={
+            'mode': ProxyMode.FORWARD_SINGLE,
+            'external_host': 'https://{{ invoiceninja_domain | default("invoiceninja.mini.debrutal.dev") }}',
+            'authorization_flow': implicit_flow,
+        }
+    );
+    in_provider.mode = ProxyMode.FORWARD_SINGLE;
+    in_provider.external_host = 'https://{{ invoiceninja_domain | default("invoiceninja.mini.debrutal.dev") }}';
+    in_provider.save();
+    in_app, _ = Application.objects.get_or_create(
+        slug='invoiceninja',
+        defaults={'name': 'Invoice Ninja', 'provider': in_provider}
+    );
+    in_app.provider = in_provider;
+    in_app.save();
+    if outpost:
+        outpost.providers.add(in_provider);
+        outpost.save();
+
     gitea_provider, _ = OAuth2Provider.objects.get_or_create(
         name='Gitea OIDC Provider',
         defaults={
@@ -185,7 +206,8 @@
     glitchtip_provider.client_id = '{{ authentik_glitchtip_client_id }}';
     glitchtip_provider.client_secret = '{{ authentik_glitchtip_client_secret }}';
     glitchtip_provider.redirect_uris = [
-        RedirectURI(matching_mode='regex', url='https://{{ sentry_domain | default("sentry.mini.debrutal.dev") }}/.*')
+        RedirectURI(matching_mode='regex', url='https://{{ sentry_domain | default("sentry.mini.debrutal.dev") }}/.*'),
+        RedirectURI(matching_mode='strict', url='https://{{ sentry_domain | default("sentry.mini.debrutal.dev") }}/accounts/oidc/authentik/login/callback/')
     ];
     glitchtip_provider.property_mappings.set(scopes);
     glitchtip_provider.save();
@@ -195,9 +217,8 @@
     );
     glitchtip_app.provider = glitchtip_provider;
     glitchtip_app.save();
-    "
+    EOF
 
   register: authentik_providers_res
-  failed_when: false
   changed_when: false
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

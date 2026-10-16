@@ -6,6 +6,7 @@ invoiceninja_traefik_certresolver: ""
 invoiceninja_traefik_entrypoints: "websecure"
 invoiceninja_domain: "invoiceninja.mini.debrutal.dev"
 invoiceninja_app_url: "https://{{ invoiceninja_domain }}"
+invoiceninja_authentik_enabled: true
 invoiceninja_db_name: "ninja"
 invoiceninja_db_user: "ninja"
 invoiceninja_db_password: "changeme"

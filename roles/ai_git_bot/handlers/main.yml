@@ -1,0 +1,6 @@
+---
+- name: Restart AI-Git-Bot
+  community.docker.docker_compose_v2:
+    project_src: "{{ ai_git_bot_dir }}"
+    state: restarted
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

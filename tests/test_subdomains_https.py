@@ -32,6 +32,8 @@ SUBDOMAINS = [
     "agentzero.mini.debrutal.dev",
     "pinchflat.mini.debrutal.dev",
     "ebook2audiobook.mini.debrutal.dev",
+    "ollama.mini.debrutal.dev",
+    "ai-git-bot.mini.debrutal.dev",
 ]
 
 

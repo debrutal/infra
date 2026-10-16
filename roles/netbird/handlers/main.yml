@@ -1,0 +1,6 @@
+---
+- name: Restart NetBird
+  ansible.builtin.systemd:
+    name: netbird
+    state: restarted
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

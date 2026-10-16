@@ -8,3 +8,4 @@
 [Operations & Deployment Guide](06_ops_guide.md)
 [Developer Guide (Entwicklerhandbuch)](07_developer_guide.md)
 [Architectural Decision Records (ADR)](08_adr_registry.md)
+[AI-Git-Bot & Gitea Integration (Dual LLM Modes)](09_ai_git_bot.md)

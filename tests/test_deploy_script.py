@@ -160,6 +160,20 @@ class TestDeployScript(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("--tags restic", result.stdout)
 
+    def test_interactive_cli_netbird(self):
+        # 1. 'n' (clear all)
+        # 2. '20' (select netbird [20])
+        # 3. 'c' (confirm tags)
+        # 4. 'y' (restart netbird service)
+        # 5. 'y' (dry run)
+        # 6. '' (no extra vars)
+        # 7. 'y' (confirm)
+        user_input = "n\n20\nc\ny\ny\n\ny\n"
+        cmd = [SCRIPT_PATH, "-i"]
+        result = subprocess.run(cmd, input=user_input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--tags netbird", result.stdout)
+
     def test_interactive_cli_cancel(self):
         user_input = "c\n\n\n\ny\n\nn\n"
         cmd = [SCRIPT_PATH, "-i"]

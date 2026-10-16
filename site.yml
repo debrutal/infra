@@ -10,6 +10,8 @@
       tags: [neovim, nvim]
     - role: podman
       tags: [podman, docker]
+    - role: netbird
+      tags: [netbird, vpn]
     - role: traefik
       tags: [traefik, proxy]
     - role: lago
@@ -38,5 +40,9 @@
       tags: [pinchflat, youtube, downloader, media]
     - role: ebook2audiobook
       tags: [ebook2audiobook, tts, media, audio]
+    - role: ollama
+      tags: [ollama, ai, llm]
+    - role: ai_git_bot
+      tags: [ai_git_bot, aigitbot, gitbot, ai, gitea]
     - role: restic
       tags: [restic, backup]

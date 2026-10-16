@@ -65,7 +65,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("vault_espocrm_admin_username | default(default_admin_username", content)
 
     def test_sentry_defaults(self):
-        """Verify Sentry default admin configuration."""
+        """Verify Sentry default admin configuration and Authentik OIDC setup."""
         sentry_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "sentry", "defaults", "main.yml")
         with open(sentry_defaults_path, "r") as f:
             content = f.read()
@@ -73,12 +73,39 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("sentry_authentik_enabled: true", content)
         self.assertIn("sentry_authentik_client_id", content)
 
+        sentry_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "sentry", "tasks", "main.yml")
+        with open(sentry_tasks_path, "r") as f:
+            tasks_content = f.read()
+        self.assertIn("Configure Authentik OIDC provider in Sentry (GlitchTip)", tasks_content)
+        self.assertIn("'email_authentication': True", tasks_content)
+        self.assertIn("EmailAddress.objects.update_or_create", tasks_content)
+        self.assertNotIn("from django.contrib.sites.models import Site", tasks_content)
+
+        authentik_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "authentik", "tasks", "main.yml")
+        with open(authentik_tasks_path, "r") as f:
+            ak_tasks_content = f.read()
+        self.assertIn("glitchtip_provider", ak_tasks_content)
+        self.assertIn("/accounts/oidc/authentik/login/callback/", ak_tasks_content)
+
     def test_invoiceninja_defaults(self):
-        """Verify Invoice Ninja default admin configuration."""
+        """Verify Invoice Ninja default admin configuration and Authentik setup."""
         invoiceninja_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "invoiceninja", "defaults", "main.yml")
         with open(invoiceninja_defaults_path, "r") as f:
             content = f.read()
         self.assertIn("vault_invoiceninja_admin_user | default(default_admin_username", content)
+        self.assertIn("invoiceninja_authentik_enabled: true", content)
+        self.assertEqual(self.all_vars.get("invoiceninja_authentik_enabled"), True)
+
+        authentik_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "authentik", "tasks", "main.yml")
+        with open(authentik_tasks_path, "r") as f:
+            ak_tasks = f.read()
+        self.assertIn("Invoice Ninja ForwardAuth", ak_tasks)
+        self.assertIn("slug='invoiceninja'", ak_tasks)
+
+        compose_path = os.path.join(WORKSPACE_DIR, "roles", "invoiceninja", "templates", "docker-compose.yml.j2")
+        with open(compose_path, "r") as f:
+            compose_content = f.read()
+        self.assertIn("traefik.http.routers.invoiceninja.middlewares=authentik@file", compose_content)
 
     def test_lago_defaults(self):
         """Verify Lago default admin configuration."""
@@ -272,6 +299,20 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         for site in expected_sites:
             self.assertIn(site, content, f"Expected site {site} missing from dash.mini.debrutal.dev services")
 
+        # Container name mapping assertions
+        self.assertIn("container: espocrm\n", content, "EspoCRM should map to 'espocrm' container")
+        self.assertNotIn("container: espocrm-app", content, "EspoCRM should not use nonexistent 'espocrm-app'")
+        self.assertIn("container: sentry-web\n", content, "Sentry should map to 'sentry-web' container")
+        self.assertNotIn("container: glitchtip-web", content, "Sentry should not use nonexistent 'glitchtip-web'")
+
+    def test_uptime_kuma_status_page_provisioning(self):
+        """Verify Uptime Kuma tasks include default status page provisioning."""
+        tasks_path = os.path.join(WORKSPACE_DIR, "roles", "uptime_kuma", "tasks", "main.yml")
+        with open(tasks_path, "r") as f:
+            content = f.read()
+        self.assertIn("Ensure Uptime Kuma default status page exists", content)
+        self.assertIn("uptime_kuma_status_slug", content)
+
     def test_traefik_acme_wildcard_domains(self):
         """Verify Traefik ACME wildcard domains configuration for mini.debrutal.dev and staging.kita-kit.de."""
         domains = self.all_vars.get("traefik_acme_domains", [])
@@ -380,6 +421,31 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         with open(os.path.join(WORKSPACE_DIR, "roles", "invoiceninja", "templates", "docker-compose.yml.j2"), "r") as f:
             inv_cfg = f.read()
         self.assertIn("kuma.invoiceninja.http.url=https://{{ invoiceninja_domain }}", inv_cfg)
+
+    def test_ai_git_bot_and_ollama_credentials(self):
+        """Verify AI-Git-Bot and Ollama credentials and configuration in defaults and group_vars."""
+        # 1. Ollama defaults
+        ollama_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "ollama", "defaults", "main.yml")
+        with open(ollama_defaults_path, "r") as f:
+            ollama_content = f.read()
+        self.assertIn("ollama_enabled: true", ollama_content)
+        self.assertIn("qwen2.5-coder:1.5b", ollama_content)
+        self.assertEqual(self.all_vars.get("ollama_enabled"), True)
+        self.assertEqual(self.all_vars.get("ollama_default_model"), "qwen2.5-coder:1.5b")
+
+        # 2. AI-Git-Bot defaults & modes
+        bot_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "ai_git_bot", "defaults", "main.yml")
+        with open(bot_defaults_path, "r") as f:
+            bot_content = f.read()
+        self.assertIn("ai_git_bot_enabled: true", bot_content)
+        self.assertIn("mode1", bot_content)
+        self.assertIn("http://ollama:11434", bot_content)
+        self.assertIn("qwen2.5-coder:14b", bot_content)
+        self.assertEqual(self.all_vars.get("ai_git_bot_enabled"), True)
+        self.assertEqual(self.all_vars.get("ai_git_bot_mode"), "mode1")
+        self.assertEqual(self.all_vars.get("ai_git_bot_mode1_model"), "qwen2.5-coder:1.5b")
+        self.assertEqual(self.all_vars.get("ai_git_bot_mode2_model"), "qwen2.5-coder:14b")
+        self.assertEqual(self.all_vars.get("ai_git_bot_username"), "ai_bot")
 
 
 if __name__ == "__main__":

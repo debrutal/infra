@@ -170,7 +170,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_interactive_cli() {
-  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "lgtm" "bookorbit" "agentzero" "pinchflat" "ebook2audiobook" "restic" "all")
+  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "lgtm" "bookorbit" "agentzero" "pinchflat" "ebook2audiobook" "restic" "netbird" "ollama" "ai_git_bot" "all")
   local tag_labels=(
     "traefik        - Traefik reverse proxy & ACME SSL"
     "gitea          - Gitea self-hosted Git service"
@@ -191,6 +191,9 @@ run_interactive_cli() {
     "pinchflat      - Pinchflat YouTube download manager & archiver"
     "ebook2audiobook - eBook to Audiobook TTS conversion platform"
     "restic         - Restic automated backups for Gitea, Authentik, BookOrbit"
+    "netbird        - NetBird mesh VPN client & subnet routing"
+    "ollama         - Ollama local LLM inference engine (Mode 1)"
+    "ai_git_bot     - AI-Git-Bot automated PR code reviewer & gateway"
     "all            - Run full playbook (all roles)"
   )
 
@@ -424,6 +427,14 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "[DRY RUN] Command not executed."
   exit 0
+fi
+
+# Check for loaded SSH agent identities to prevent ssh_askpass errors
+if ! ssh-add -l >/dev/null 2>&1; then
+  echo -e "\n\033[1;33m[!] Notice: No SSH key identities currently loaded in ssh-agent.\033[0m"
+  echo -e "\033[0;33m    If your SSH private key has a passphrase, Ansible cannot prompt for it in batch mode.\033[0m"
+  echo -e "\033[0;33m    Please load your key first by running:\033[0m"
+  echo -e "\033[1;32m      eval \$(ssh-agent) && ssh-add ~/.ssh/id_ed25519\033[0m\n"
 fi
 
 exec "${CMD[@]}"

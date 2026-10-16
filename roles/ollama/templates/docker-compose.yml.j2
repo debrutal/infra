@@ -1,0 +1,47 @@
+services:
+  ollama:
+    image: {{ ollama_image }}:{{ ollama_version }}
+    container_name: ollama
+    restart: always
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE={{ ollama_keep_alive | default('24h') }}
+      - OLLAMA_NUM_PARALLEL={{ ollama_num_parallel | default(2) }}
+    volumes:
+      - {{ ollama_data_dir }}:/root/.ollama
+{% if ollama_host_port is defined and ollama_host_port %}
+    ports:
+      - "{{ ollama_host_port }}:11434"
+{% endif %}
+    networks:
+      - default
+      - traefik_net
+{% if ollama_traefik_enabled | default(true) %}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`{{ ollama_domain }}`)"
+      - "traefik.http.routers.ollama.entrypoints={{ ollama_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.ollama.tls=true"
+{% if ollama_traefik_certresolver is defined and ollama_traefik_certresolver %}
+      - "traefik.http.routers.ollama.tls.certresolver={{ ollama_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+{% if ollama_authentik_enabled | default(false) %}
+      - "traefik.http.routers.ollama.middlewares=authentik@file"
+{% endif %}
+      - "traefik.http.services.ollama.loadbalancer.server.port={{ ollama_port }}"
+      - "kuma.ollama.http.name=Ollama LLM Engine"
+      - "kuma.ollama.http.url=http://ollama:{{ ollama_port }}/api/version"
+      - "homepage.group=AI & Automation"
+      - "homepage.name=Ollama"
+      - "homepage.icon=ollama"
+      - "homepage.href={{ ollama_site_url }}"
+      - "homepage.description=Local LLM Inference Engine"
+{% endif %}
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ ollama_traefik_network }}

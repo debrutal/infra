@@ -66,7 +66,7 @@ services:
       - "traefik.http.routers.invoiceninja.tls.certresolver={{ invoiceninja_traefik_certresolver }}"
 {% endif %}
 {% endif %}
-{% if invoiceninja_authentik_enabled | default(false) %}
+{% if invoiceninja_authentik_enabled | default(true) %}
       - "traefik.http.routers.invoiceninja.middlewares=authentik@file"
 {% endif %}
       - "traefik.http.services.invoiceninja.loadbalancer.server.port=80"

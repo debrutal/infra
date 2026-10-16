@@ -59,27 +59,29 @@
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Create or update Sentry (GlitchTip) admin user
-  ansible.builtin.command: >-
-    docker exec sentry-web ./manage.py shell -c "
+  ansible.builtin.shell: |
+    docker exec -i sentry-web ./manage.py shell << 'EOF'
     from django.contrib.auth import get_user_model
+    from allauth.account.models import EmailAddress
     User = get_user_model()
-    defaults = {'email': '{{ sentry_admin_email }}', 'is_superuser': True, 'is_staff': True, 'is_active': True}
-    u, created = User.objects.get_or_create(username='{{ sentry_admin_user }}', defaults=defaults)
+    defaults = {'is_superuser': True, 'is_staff': True, 'is_active': True}
+    u, created = User.objects.get_or_create(email='{{ sentry_admin_email }}', defaults=defaults)
     u.email = '{{ sentry_admin_email }}'
     u.is_superuser = True
     u.is_staff = True
     u.is_active = True
-    u.set_password('{{ sentry_admin_password }}')
+    if '{{ sentry_admin_password }}':
+        u.set_password('{{ sentry_admin_password }}')
     u.save()
-    "
+    EmailAddress.objects.update_or_create(user=u, email='{{ sentry_admin_email }}', defaults={'verified': True, 'primary': True})
+    EOF
   register: sentry_user_res
-  failed_when: false
   changed_when: false
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Configure Authentik OIDC provider in Sentry (GlitchTip)
-  ansible.builtin.command: >-
-    docker exec sentry-web ./manage.py shell -c "
+  ansible.builtin.shell: |
+    docker exec -i sentry-web ./manage.py shell << 'EOF'
     from allauth.socialaccount.models import SocialApp
     app, _ = SocialApp.objects.get_or_create(
         provider='openid_connect',
@@ -89,7 +91,8 @@
             'client_id': '{{ sentry_authentik_client_id }}',
             'secret': '{{ sentry_authentik_client_secret }}',
             'settings': {
-                'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration'
+                'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration',
+                'email_authentication': True
             }
         }
     )
@@ -97,16 +100,12 @@
     app.client_id = '{{ sentry_authentik_client_id }}'
     app.secret = '{{ sentry_authentik_client_secret }}'
     app.settings = {
-        'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration'
+        'server_url': 'https://{{ sentry_authentik_domain }}/application/o/glitchtip/.well-known/openid-configuration',
+        'email_authentication': True
     }
     app.save()
-    if hasattr(app, 'sites'):
-        from django.contrib.sites.models import Site
-        for s in Site.objects.all():
-            app.sites.add(s)
-    "
+    EOF
   register: sentry_authentik_res
-  failed_when: false
   changed_when: false
   when:
     - sentry_authentik_enabled | default(true)

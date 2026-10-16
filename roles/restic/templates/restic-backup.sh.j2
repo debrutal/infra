@@ -166,6 +166,18 @@ dump_databases() {
       echo "[!] Notice: Pinchflat database not found, skipping."
     fi
   fi
+
+  # 10. AI-Git-Bot PostgreSQL database dump
+  if [[ "{{ restic_ai_git_bot_enabled | default(true) | string | lower }}" == "true" ]]; then
+    if is_container_running "ai-git-bot-db"; then
+      echo "[+] Exporting AI-Git-Bot database dump from ai-git-bot-db..."
+      container_exec ai-git-bot-db pg_dump -U "{{ ai_git_bot_db_user | default('aigitbot') }}" "{{ ai_git_bot_db_name | default('aigitbot') }}" > "${DUMPS_DIR}/ai-git-bot.sql"
+      chmod 600 "${DUMPS_DIR}/ai-git-bot.sql"
+      echo "[+] AI-Git-Bot database dump complete ($(du -h "${DUMPS_DIR}/ai-git-bot.sql" | cut -f1))"
+    else
+      echo "[!] Notice: ai-git-bot-db container is not running, skipping database dump."
+    fi
+  fi
 }
 
 run_backup() {
@@ -239,6 +251,11 @@ run_backup() {
     backup_tags+=("--tag" "agentzero")
   fi
 
+  if [[ "{{ restic_ai_git_bot_enabled | default(true) | string | lower }}" == "true" && -d "/opt/ai-git-bot" ]]; then
+    backup_paths+=("/opt/ai-git-bot")
+    backup_tags+=("--tag" "ai_git_bot")
+  fi
+
   if [[ -d "/opt/ebook2audiobook" ]]; then
     backup_paths+=("/opt/ebook2audiobook")
     backup_tags+=("--tag" "ebook2audiobook")
@@ -256,6 +273,7 @@ run_backup() {
     --exclude "/opt/authentik/redis" \
     --exclude "/opt/authentik/postgres" \
     --exclude "/opt/bookorbit/data/postgres" \
+    --exclude "/opt/ai-git-bot/db-data" \
     --exclude "/opt/pinchflat/downloads" \
     --exclude "*.tmp" \
     --exclude "*.log" \

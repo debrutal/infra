@@ -22,6 +22,16 @@ def test_docker_gpg_key(host):
     assert gpg_key.exists
 
 
+def test_netbird_repository_and_key(host):
+    """Verify NetBird GPG key and deb822 repository file exist, and legacy list is removed."""
+    gpg_key = host.file("/etc/apt/keyrings/netbird.asc")
+    assert gpg_key.exists
+    sources_file = host.file("/etc/apt/sources.list.d/netbird.sources")
+    assert sources_file.exists
+    legacy_file = host.file("/etc/apt/sources.list.d/netbird.list")
+    assert not legacy_file.exists
+
+
 def test_docker_group_membership(host):
     """Verify docker group exists and user debrutal is added."""
     assert host.group("docker").exists
@@ -110,6 +120,7 @@ def test_invoiceninja_directory_and_compose(host):
     assert "traefik.enable=true" in content
     assert "invoiceninja.mini.debrutal.dev" in content
     assert "APP_KEY:" in content
+    assert "traefik.http.routers.invoiceninja.middlewares=authentik@file" in content
 
 
 def test_espocrm_directory_and_compose(host):
@@ -409,4 +420,50 @@ def test_restic_backup_setup(host):
     assert svc.exists
     timer = host.file("/etc/systemd/system/restic-backup.timer")
     assert timer.exists
+
+
+def test_ollama_directory_and_compose(host):
+    """Verify Ollama containerized directory and docker-compose.yml configuration."""
+    ollama_dir = host.file("/opt/ollama")
+    assert ollama_dir.exists
+    assert ollama_dir.is_directory
+
+    data_dir = host.file("/opt/ollama/data")
+    assert data_dir.exists
+    assert data_dir.is_directory
+
+    compose_yml = host.file("/opt/ollama/docker-compose.yml")
+    assert compose_yml.exists
+    content = compose_yml.content_string
+    assert "traefik.enable=true" in content
+    assert "ollama.mini.debrutal.dev" in content
+    assert "ollama/ollama" in content
+    assert "OLLAMA_HOST=0.0.0.0:11434" in content
+
+
+def test_ai_git_bot_directory_and_compose(host):
+    """Verify AI-Git-Bot directory, compose file, and modes configuration."""
+    bot_dir = host.file("/opt/ai-git-bot")
+    assert bot_dir.exists
+    assert bot_dir.is_directory
+
+    for subdir in ["data", "db-data"]:
+        d = host.file(f"/opt/ai-git-bot/{subdir}")
+        assert d.exists
+        assert d.is_directory
+
+    compose_yml = host.file("/opt/ai-git-bot/docker-compose.yml")
+    assert compose_yml.exists
+    content = compose_yml.content_string
+    assert "traefik.enable=true" in content
+    assert "ai-git-bot.mini.debrutal.dev" in content
+    assert "tmseidel/ai-git-bot" in content
+    assert "ai-git-bot-db" in content
+    assert "postgres:17-alpine" in content
+
+    modes_cfg = host.file("/opt/ai-git-bot/modes_configuration.json")
+    assert modes_cfg.exists
+    cfg_content = modes_cfg.content_string
+    assert "mode1_device_local" in cfg_content
+    assert "mode2_remote_mac" in cfg_content
 

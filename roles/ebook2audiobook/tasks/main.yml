@@ -11,6 +11,18 @@
     - "{{ ebook2audiobook_models_dir }}"
     - "{{ ebook2audiobook_voices_dir }}"
     - "{{ ebook2audiobook_tmp_dir }}"
+    - "{{ ebook2audiobook_custom_dir }}"
+
+- name: Copy eBook2Audiobook custom UI files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ ebook2audiobook_custom_dir }}/{{ item.dest }}"
+    mode: '0644'
+  loop:
+    - { src: "gradio.py", dest: "gradio.py" }
+    - { src: "core.py", dest: "core.py" }
+    - { src: "header.css", dest: "header.css" }
+  notify: Restart eBook2Audiobook
 
 - name: Deploy eBook2Audiobook docker-compose file
   ansible.builtin.template:

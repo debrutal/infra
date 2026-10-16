@@ -37,17 +37,21 @@
     state: present
     update_cache: true
 
-- name: Ensure podman.socket is enabled and started
+- name: Ensure podman.socket and podman-restart are enabled and started
   ansible.builtin.systemd:
-    name: podman.socket
+    name: "{{ item }}"
     enabled: true
     state: started
+  loop:
+    - podman.socket
+    - podman-restart
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
-- name: Ensure Docker service and socket are stopped and disabled
+- name: Ensure Docker service and socket are stopped, disabled and masked
   ansible.builtin.systemd:
     name: "{{ item }}"
     enabled: false
+    masked: true
     state: stopped
   loop:
     - docker.socket
@@ -62,6 +66,23 @@
   ansible.builtin.file:
     path: /var/lib/containerd
     state: absent
+  when:
+    - podman_link_docker_sock
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Deploy systemd-tmpfiles configuration for persistent docker.sock symlinks across reboots
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/podman-docker.conf
+    content: |
+      L+ /var/run/docker.sock - - - - /run/podman/podman.sock
+      L+ /run/docker.sock - - - - /run/podman/podman.sock
+    mode: '0644'
+  when: podman_link_docker_sock
+
+- name: Apply systemd-tmpfiles configuration
+  ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/podman-docker.conf
+  changed_when: false
   when:
     - podman_link_docker_sock
     - ansible_connection != 'docker'
@@ -86,6 +107,13 @@
     - podman_link_docker_sock
     - ansible_connection != 'docker'
     - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Ensure Podman container storage directories exist for Promtail log scraping
+  ansible.builtin.file:
+    path: /var/lib/containers/storage/overlay-containers
+    state: directory
+    mode: '0755'
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
 - name: Ensure docker group exists for socket compatibility
   ansible.builtin.group:

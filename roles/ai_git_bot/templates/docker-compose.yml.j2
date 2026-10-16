@@ -1,0 +1,61 @@
+services:
+  ai-git-bot:
+    image: {{ ai_git_bot_image }}:{{ ai_git_bot_version }}
+    container_name: ai-git-bot
+    restart: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DATABASE_URL=jdbc:postgresql://ai-git-bot-db:5432/{{ ai_git_bot_db_name }}
+      - DATABASE_USERNAME={{ ai_git_bot_db_user }}
+      - DATABASE_PASSWORD={{ ai_git_bot_db_password }}
+      - APP_ENCRYPTION_KEY={{ ai_git_bot_encryption_key }}
+      - APP_PUBLIC_URL={{ ai_git_bot_site_url }}
+      - GITEABOT_SECURITY_LOGIN_METHOD={{ ai_git_bot_login_method | default('native') }}
+    depends_on:
+      ai-git-bot-db:
+        condition: service_healthy
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-git-bot.rule=Host(`{{ ai_git_bot_domain }}`)"
+      - "traefik.http.routers.ai-git-bot.entrypoints={{ ai_git_bot_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.ai-git-bot.tls=true"
+{% if ai_git_bot_traefik_certresolver is defined and ai_git_bot_traefik_certresolver %}
+      - "traefik.http.routers.ai-git-bot.tls.certresolver={{ ai_git_bot_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.ai-git-bot.loadbalancer.server.port={{ ai_git_bot_port }}"
+      - "kuma.ai-git-bot.http.name=AI Git Bot"
+      - "kuma.ai-git-bot.http.url=http://ai-git-bot:{{ ai_git_bot_port }}"
+      - "homepage.group=Development & CI"
+      - "homepage.name=AI-Git-Bot"
+      - "homepage.icon=gitea"
+      - "homepage.href={{ ai_git_bot_site_url }}"
+      - "homepage.description=AI PR Reviewer & Git Automation"
+
+  ai-git-bot-db:
+    image: {{ ai_git_bot_db_image }}:{{ ai_git_bot_db_version }}
+    container_name: ai-git-bot-db
+    restart: always
+    environment:
+      - POSTGRES_DB={{ ai_git_bot_db_name }}
+      - POSTGRES_USER={{ ai_git_bot_db_user }}
+      - POSTGRES_PASSWORD={{ ai_git_bot_db_password }}
+    volumes:
+      - {{ ai_git_bot_db_dir }}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ ai_git_bot_db_user }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ ai_git_bot_traefik_network }}

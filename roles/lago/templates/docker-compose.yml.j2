@@ -79,7 +79,6 @@ services:
       interval: 10s
       start_period: 30s
       timeout: 60s
-      start_interval: 2s
     environment:
       DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
       REDIS_URL: "redis://redis:{{ lago_redis_port }}"
@@ -179,7 +178,6 @@ services:
       interval: 10s
       start_period: 30s
       timeout: 60s
-      start_interval: 2s
     environment:
       DATABASE_URL: "postgresql://{{ lago_postgres_user }}:{{ lago_postgres_password }}@db:{{ lago_postgres_port }}/{{ lago_postgres_db }}?search_path=public"
       REDIS_URL: "redis://redis:{{ lago_redis_port }}"

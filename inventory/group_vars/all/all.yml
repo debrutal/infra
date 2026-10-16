@@ -96,6 +96,7 @@ invoiceninja_traefik_certresolver: ""
 invoiceninja_traefik_entrypoints: "websecure"
 invoiceninja_domain: "invoiceninja.mini.debrutal.dev"
 invoiceninja_app_url: "https://{{ invoiceninja_domain }}"
+invoiceninja_authentik_enabled: true
 
 # EspoCRM configuration
 espocrm_dir: "/opt/espocrm"
@@ -262,7 +263,7 @@ pinchflat_authentik_enabled: true
 # eBook2Audiobook configuration
 ebook2audiobook_dir: "/opt/ebook2audiobook"
 ebook2audiobook_image: "athomasson2/ebook2audiobook"
-ebook2audiobook_version: "latest"
+ebook2audiobook_version: "cpu"
 ebook2audiobook_traefik_network: "{{ traefik_network_name }}"
 ebook2audiobook_traefik_certresolver: ""
 ebook2audiobook_traefik_entrypoints: "websecure"
@@ -299,3 +300,62 @@ restic_pinchflat_enabled: true
 restic_traefik_enabled: true
 restic_homepage_enabled: true
 restic_agentzero_enabled: true
+restic_ai_git_bot_enabled: true
+
+# NetBird configuration
+netbird_enabled: true
+netbird_setup_key: "{{ vault_netbird_setup_key | default('') }}"
+netbird_management_url: ""
+netbird_hostname: "minisforum"
+netbird_allow_server_ssh: false
+
+# Ollama (Local LLM Inference Engine - Mode 1) configuration
+ollama_enabled: true
+ollama_dir: "/opt/ollama"
+ollama_image: "ollama/ollama"
+ollama_version: "latest"
+ollama_port: 11434
+ollama_domain: "ollama.mini.debrutal.dev"
+ollama_site_url: "https://{{ ollama_domain }}"
+ollama_keep_alive: "24h"
+ollama_num_parallel: 2
+ollama_default_model: "qwen2.5-coder:1.5b"
+ollama_pull_models:
+  - "qwen2.5-coder:1.5b"
+  - "qwen2.5-coder:7b"
+
+# AI-Git-Bot configuration
+ai_git_bot_enabled: true
+ai_git_bot_dir: "/opt/ai-git-bot"
+ai_git_bot_image: "tmseidel/ai-git-bot"
+ai_git_bot_version: "latest"
+ai_git_bot_port: 8080
+ai_git_bot_domain: "ai-git-bot.mini.debrutal.dev"
+ai_git_bot_site_url: "https://{{ ai_git_bot_domain }}"
+ai_git_bot_db_name: "aigitbot"
+ai_git_bot_db_user: "aigitbot"
+ai_git_bot_db_password: "{{ vault_ai_git_bot_db_password | default('aigitbot-secure-password-1234!') }}"
+ai_git_bot_encryption_key: "{{ vault_ai_git_bot_encryption_key | default('a-secure-32-char-key-for-aes-256!') }}"
+ai_git_bot_login_method: "native"
+
+# AI Inference Modes
+# Mode 1: Device-local inference on Minisforum host (active by default)
+# Mode 2: Remote device inference on Mac (prepared)
+ai_git_bot_mode: "mode1"
+
+# Mode 1 settings (local small model)
+ai_git_bot_mode1_name: "Minisforum Local Ollama"
+ai_git_bot_mode1_provider: "ollama"
+ai_git_bot_mode1_api_url: "http://ollama:11434"
+ai_git_bot_mode1_model: "qwen2.5-coder:1.5b"
+
+# Mode 2 settings (remote Mac larger model - prepared)
+ai_git_bot_mode2_name: "Mac Remote Ollama"
+ai_git_bot_mode2_provider: "ollama"
+ai_git_bot_mode2_api_url: "{{ vault_ai_git_bot_mode2_api_url | default('http://192.168.1.10:11434') }}"
+ai_git_bot_mode2_model: "qwen2.5-coder:14b"
+
+# Gitea integration for AI-Git-Bot
+ai_git_bot_username: "ai_bot"
+ai_git_bot_email: "ai-bot@mini.debrutal.dev"
+ai_git_bot_password: "{{ vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!')) }}"

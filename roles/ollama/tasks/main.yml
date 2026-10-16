@@ -1,0 +1,45 @@
+---
+- name: Create Ollama directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ ollama_dir }}"
+    - "{{ ollama_data_dir }}"
+
+- name: Deploy Ollama docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ ollama_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Ollama
+
+- name: Start Ollama container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ollama_dir }}"
+    state: present
+    recreate: "{{ (ollama_force_restart | default(false) or all_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for Ollama service to be available
+  ansible.builtin.command: >
+    docker exec ollama curl -s -f http://localhost:11434/api/version
+  register: ollama_wait_res
+  until: ollama_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Pull configured Ollama models for local inference
+  ansible.builtin.command: >
+    docker exec ollama ollama pull {{ item }}
+  loop: "{{ ollama_pull_models | default([]) }}"
+  register: ollama_pull_res
+  changed_when: "'success' in ollama_pull_res.stdout"
+  failed_when: false
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ollama_wait_res is defined and ollama_wait_res.rc | default(1) == 0

@@ -189,6 +189,17 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("API_URL:", res_compose.stdout)
         self.assertIn("LAGO_DOMAIN:", res_compose.stdout)
 
+    def test_12_invoiceninja_installation(self):
+        """Verify Invoice Ninja containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/invoiceninja"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/invoiceninja directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/invoiceninja/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/invoiceninja/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("invoiceninja.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("traefik.http.routers.invoiceninja.middlewares=authentik@file", res_compose.stdout)
+
     def test_13_lgtm_installation(self):
         """Verify LGTM containerized directory and docker-compose.yml configuration."""
         res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/lgtm"], capture_output=True)
@@ -297,7 +308,7 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("athomasson2/ebook2audiobook", res_compose.stdout)
         self.assertIn("traefik.http.routers.ebook2audiobook.middlewares=authentik@file", res_compose.stdout)
 
-        for subdir in ["ebooks", "audiobooks", "models", "voices", "tmp"]:
+        for subdir in ["ebooks", "audiobooks", "models", "voices", "tmp", "custom"]:
             res_sub = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/ebook2audiobook/{subdir}"], capture_output=True)
             self.assertEqual(res_sub.returncode, 0, f"/opt/ebook2audiobook/{subdir} directory missing")
 
@@ -330,6 +341,52 @@ class TestContainerDeployment(unittest.TestCase):
 
         res_timer = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/systemd/system/restic-backup.timer"], capture_output=True)
         self.assertEqual(res_timer.returncode, 0, "/etc/systemd/system/restic-backup.timer missing")
+
+    def test_20_netbird_installation(self):
+        """Verify NetBird GPG key and binary are installed."""
+        res_key = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/apt/keyrings/netbird.asc"], capture_output=True)
+        self.assertEqual(res_key.returncode, 0, "/etc/apt/keyrings/netbird.asc missing")
+
+        res_bin = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-x", "/usr/bin/netbird"], capture_output=True)
+        self.assertEqual(res_bin.returncode, 0, "/usr/bin/netbird missing or not executable")
+
+        res_repo = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-f", "/etc/apt/sources.list.d/netbird.sources"], capture_output=True)
+        self.assertEqual(res_repo.returncode, 0, "/etc/apt/sources.list.d/netbird.sources missing")
+
+        res_legacy = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "!", "-f", "/etc/apt/sources.list.d/netbird.list"], capture_output=True)
+        self.assertEqual(res_legacy.returncode, 0, "legacy /etc/apt/sources.list.d/netbird.list should not exist")
+
+    def test_21_ollama_installation(self):
+        """Verify Ollama directories and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/ollama"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/ollama directory missing")
+
+        res_data = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/ollama/data"], capture_output=True)
+        self.assertEqual(res_data.returncode, 0, "/opt/ollama/data directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/ollama/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/ollama/docker-compose.yml missing")
+        self.assertIn("ollama/ollama", res_compose.stdout)
+        self.assertIn("OLLAMA_HOST=0.0.0.0:11434", res_compose.stdout)
+        self.assertIn("ollama.mini.debrutal.dev", res_compose.stdout)
+
+    def test_22_ai_git_bot_installation(self):
+        """Verify AI-Git-Bot directories, docker-compose.yml, and mode configuration."""
+        for path in ["/opt/ai-git-bot", "/opt/ai-git-bot/data", "/opt/ai-git-bot/db-data"]:
+            res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", path], capture_output=True)
+            self.assertEqual(res_dir.returncode, 0, f"{path} directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/ai-git-bot/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/ai-git-bot/docker-compose.yml missing")
+        self.assertIn("tmseidel/ai-git-bot", res_compose.stdout)
+        self.assertIn("ai-git-bot-db", res_compose.stdout)
+        self.assertIn("postgres:17-alpine", res_compose.stdout)
+        self.assertIn("ai-git-bot.mini.debrutal.dev", res_compose.stdout)
+
+        res_cfg = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/ai-git-bot/modes_configuration.json"], capture_output=True, text=True)
+        self.assertEqual(res_cfg.returncode, 0, "/opt/ai-git-bot/modes_configuration.json missing")
+        self.assertIn("mode1_device_local", res_cfg.stdout)
+        self.assertIn("mode2_remote_mac", res_cfg.stdout)
 
 
 if __name__ == "__main__":

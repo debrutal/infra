@@ -13,6 +13,9 @@ services:
       - {{ ebook2audiobook_models_dir }}:/app/models
       - {{ ebook2audiobook_voices_dir }}:/app/voices
       - {{ ebook2audiobook_tmp_dir }}:/app/tmp
+      - {{ ebook2audiobook_custom_dir }}/gradio.py:/app/lib/gradio.py:ro
+      - {{ ebook2audiobook_custom_dir }}/core.py:/app/lib/core.py:ro
+      - {{ ebook2audiobook_custom_dir }}/header.css:/app/lib/header.css:ro
 {% if ebook2audiobook_host_port is defined and ebook2audiobook_host_port %}
     ports:
       - "{{ ebook2audiobook_host_port }}:{{ ebook2audiobook_port }}"

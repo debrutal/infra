@@ -10,3 +10,4 @@ common_packages:
   - tar
   - unzip
   - ripgrep
+  - python3-debian

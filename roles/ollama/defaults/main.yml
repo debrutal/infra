@@ -1,0 +1,26 @@
+---
+ollama_enabled: true
+ollama_dir: "/opt/ollama"
+ollama_data_dir: "{{ ollama_dir }}/data"
+ollama_image: "ollama/ollama"
+ollama_version: "latest"
+ollama_port: 11434
+ollama_host_port: ""
+ollama_traefik_network: "{{ traefik_network_name }}"
+ollama_traefik_certresolver: ""
+ollama_traefik_entrypoints: "websecure"
+ollama_domain: "ollama.mini.debrutal.dev"
+ollama_site_url: "https://{{ ollama_domain }}"
+ollama_traefik_enabled: true
+ollama_authentik_enabled: false
+
+# Ollama runtime parameters
+ollama_keep_alive: "24h"
+ollama_num_parallel: 2
+ollama_default_model: "qwen2.5-coder:1.5b"
+ollama_pull_models:
+  - "qwen2.5-coder:1.5b"
+  - "qwen2.5-coder:7b"
+
+# Force restart flag
+ollama_force_restart: false

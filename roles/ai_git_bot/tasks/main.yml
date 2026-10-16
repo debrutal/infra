@@ -1,0 +1,106 @@
+---
+- name: Create AI-Git-Bot directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ ai_git_bot_dir }}"
+    - "{{ ai_git_bot_data_dir }}"
+    - "{{ ai_git_bot_db_dir }}"
+
+- name: Deploy AI-Git-Bot docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ ai_git_bot_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart AI-Git-Bot
+
+- name: Start AI-Git-Bot container stack via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ai_git_bot_dir }}"
+    state: present
+    recreate: "{{ (ai_git_bot_force_restart | default(false) or all_force_restart | default(false)) | ternary('always', 'auto') }}"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for AI-Git-Bot container to be running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' ai-git-bot
+  register: ai_git_bot_status_res
+  until: ai_git_bot_status_res.rc == 0 and ai_git_bot_status_res.stdout.strip() == 'true'
+  retries: 30
+  delay: 2
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Create Gitea AI bot user if not existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea admin user create
+    --username {{ ai_git_bot_username }}
+    --password {{ ai_git_bot_password }}
+    --email {{ ai_git_bot_email }}
+    --must-change-password=false
+  register: ai_git_bot_gitea_user_res
+  failed_when: false
+  changed_when: "'successfully created' in ai_git_bot_gitea_user_res.stdout"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Check if Gitea bot token file already exists
+  ansible.builtin.stat:
+    path: "{{ ai_git_bot_dir }}/gitea_token.txt"
+  register: ai_git_bot_token_file
+
+- name: Generate Gitea access token for AI bot user
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 gitea gitea admin user generate-access-token
+    --username {{ ai_git_bot_username }}
+    --token-name "ai-git-bot-{{ ansible_date_time.epoch | default('default') }}"
+    --scopes all
+    --raw
+  register: ai_git_bot_token_cmd
+  failed_when: false
+  changed_when: true
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - not (ai_git_bot_token_file.stat.exists | default(false)) or (ai_git_bot_token_file.stat.size | default(0)) == 0
+
+- name: Save Gitea bot access token to local file
+  ansible.builtin.copy:
+    dest: "{{ ai_git_bot_dir }}/gitea_token.txt"
+    content: "{{ ai_git_bot_token_cmd.stdout | trim }}\n"
+    mode: '0600'
+    owner: root
+    group: root
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_token_cmd is defined
+    - ai_git_bot_token_cmd.stdout is defined
+    - (ai_git_bot_token_cmd.stdout | trim) | length > 0
+
+- name: Deploy AI-Git-Bot configuration reference and modes specification
+  ansible.builtin.copy:
+    dest: "{{ ai_git_bot_dir }}/modes_configuration.json"
+    content: |
+      {
+        "gitea": {
+          "url": "{{ ai_git_bot_gitea_url }}",
+          "username": "{{ ai_git_bot_username }}",
+          "email": "{{ ai_git_bot_email }}"
+        },
+        "mode1_device_local": {
+          "description": "Local LLM inference on the Minisforum host",
+          "provider": "{{ ai_git_bot_mode1_provider }}",
+          "endpoint": "{{ ai_git_bot_mode1_api_url }}",
+          "model": "{{ ai_git_bot_mode1_model }}",
+          "active": {{ (ai_git_bot_mode == 'mode1') | to_json }}
+        },
+        "mode2_remote_mac": {
+          "description": "Remote LLM inference on Mac (larger model)",
+          "provider": "{{ ai_git_bot_mode2_provider }}",
+          "endpoint": "{{ ai_git_bot_mode2_api_url }}",
+          "model": "{{ ai_git_bot_mode2_model }}",
+          "active": {{ (ai_git_bot_mode == 'mode2') | to_json }}
+        }
+      }
+    mode: '0644'

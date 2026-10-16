@@ -37,10 +37,12 @@
 - name: Create or update Uptime Kuma admin user
   ansible.builtin.command: >
     docker exec uptime-kuma node -e "
-    const R = require('redbean-node');
+    const Database = require('./server/database.js');
+    const { R } = require('redbean-node');
     const bcrypt = require('bcryptjs');
     async function run() {
-      R.setup('sqlite', { file: '/app/data/kuma.db' });
+      Database.initDataDir({});
+      await Database.connect(false, true, true);
       const hash = await bcrypt.hash('{{ uptime_kuma_password }}', 10);
       let user = await R.findOne('user', ' username = ? ', ['{{ uptime_kuma_username }}']);
       if (!user) {
@@ -50,11 +52,61 @@
       }
       user.password = hash;
       await R.store(user);
-      await R.close();
+      await Database.close();
     }
     run().catch(console.error);
     "
   register: uptime_kuma_user_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Ensure Uptime Kuma default status page exists
+  ansible.builtin.command: >
+    docker exec uptime-kuma node -e "
+    const Database = require('./server/database.js');
+    const { R } = require('redbean-node');
+    async function run() {
+      Database.initDataDir({});
+      await Database.connect(false, true, true);
+      let statusPage = await R.findOne('status_page', ' slug = ? ', ['{{ uptime_kuma_status_slug | default('default') }}']);
+      if (!statusPage) {
+        statusPage = R.dispense('status_page');
+        statusPage.slug = '{{ uptime_kuma_status_slug | default('default') }}';
+        statusPage.title = 'Services Status';
+        statusPage.description = 'Infrastructure Status Page';
+        statusPage.theme = 'auto';
+        statusPage.icon = '';
+        statusPage.autoRefreshInterval = 300;
+        statusPage.published = 1;
+        await R.store(statusPage);
+      }
+      let group = await R.findOne('group', ' status_page_id = ? AND public = 1 ', [statusPage.id]);
+      if (!group) {
+        group = R.dispense('group');
+        group.status_page_id = statusPage.id;
+        group.name = 'Services';
+        group.public = true;
+        group.weight = 1;
+        await R.store(group);
+      }
+      const monitors = await R.findAll('monitor');
+      for (let i = 0; i < monitors.length; i++) {
+        const m = monitors[i];
+        let rel = await R.findOne('monitor_group', ' group_id = ? AND monitor_id = ? ', [group.id, m.id]);
+        if (!rel) {
+          rel = R.dispense('monitor_group');
+          rel.group_id = group.id;
+          rel.monitor_id = m.id;
+          rel.weight = i + 1;
+          await R.store(rel);
+        }
+      }
+      await Database.close();
+    }
+    run().catch(console.error);
+    "
+  register: uptime_kuma_status_page_res
   failed_when: false
   changed_when: false
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'

@@ -1,0 +1,79 @@
+---
+- name: Ensure keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download NetBird official GPG key
+  ansible.builtin.get_url:
+    url: https://pkgs.netbird.io/debian/public.key
+    dest: /etc/apt/keyrings/netbird.asc
+    mode: '0644'
+
+- name: Remove legacy NetBird APT repository list file
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/netbird.list
+    state: absent
+
+- name: Add NetBird APT repository
+  ansible.builtin.deb822_repository:
+    name: netbird
+    types: [deb]
+    uris:
+      - https://pkgs.netbird.io/debian
+    suites:
+      - stable
+    components:
+      - main
+    architectures:
+      - "{{ ansible_facts['architecture'] | replace('x86_64', 'amd64') | replace('aarch64', 'arm64') }}"
+    signed_by: /etc/apt/keyrings/netbird.asc
+    state: present
+
+- name: Update apt cache and install NetBird package
+  ansible.builtin.apt:
+    name: netbird
+    state: present
+    update_cache: true
+
+- name: Enable IPv4 forwarding for NetBird Subnet Routing
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Ensure NetBird service is enabled and started
+  ansible.builtin.systemd:
+    name: netbird
+    enabled: true
+    state: started
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Check NetBird connection status
+  ansible.builtin.command: netbird status
+  register: netbird_status_check
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Connect NetBird node if setup key is provided
+  ansible.builtin.command: >-
+    netbird up
+    --setup-key {{ netbird_setup_key }}
+    {% if netbird_management_url | default('') | length > 0 %}--management-url {{ netbird_management_url }}{% endif %}
+    {% if netbird_hostname | default('') | length > 0 %}--hostname {{ netbird_hostname }}{% endif %}
+    {% if netbird_allow_server_ssh | default(false) %}--allow-server-ssh{% endif %}
+    {{ netbird_extra_up_args | default('') }}
+  register: netbird_up_res
+  changed_when: "'Connected' in netbird_up_res.stdout or netbird_up_res.rc == 0"
+  when:
+    - ansible_connection != 'docker'
+    - (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - netbird_setup_key | default('') | length > 0
+    - netbird_status_check.rc is defined
+    - "'Connected' not in (netbird_status_check.stdout | default(''))"
+  no_log: true

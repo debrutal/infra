@@ -11,6 +11,7 @@
     - "{{ lgtm_dir }}/grafana/provisioning/datasources"
     - "{{ lgtm_dir }}/grafana/provisioning/dashboards"
     - "{{ lgtm_dir }}/grafana/provisioning/dashboards/json"
+    - /var/lib/containers/storage/overlay-containers
 
 - name: Deploy Loki configuration file
   ansible.builtin.template:

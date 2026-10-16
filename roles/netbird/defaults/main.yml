@@ -1,0 +1,7 @@
+---
+netbird_enabled: true
+netbird_setup_key: "{{ vault_netbird_setup_key | default('') }}"
+netbird_management_url: ""
+netbird_hostname: "minisforum"
+netbird_allow_server_ssh: false
+netbird_extra_up_args: ""

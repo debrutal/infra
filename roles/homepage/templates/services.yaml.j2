@@ -34,7 +34,7 @@
         icon: espocrm
         href: "{{ espocrm_site_url }}"
         description: Customer Relationship Management
-        container: espocrm-app
+        container: espocrm
 
 - Monitoring & Health:
     - Uptime Kuma:
@@ -50,7 +50,7 @@
         icon: sentry
         href: "{{ sentry_site_url }}"
         description: Application Error Tracking & Diagnostics
-        container: glitchtip-web
+        container: sentry-web
     - Grafana (LGTM):
         icon: grafana
         href: "{{ lgtm_site_url }}"
@@ -74,6 +74,13 @@
         href: "{{ gitea_mcp_site_url | default('https://gitea-mcp.mini.debrutal.dev') }}"
         description: Gitea Model Context Protocol Server
         container: gitea-mcp
+{% endif %}
+{% if ai_git_bot_enabled | default(true) %}
+    - AI-Git-Bot:
+        icon: gitea
+        href: "{{ ai_git_bot_site_url | default('https://ai-git-bot.mini.debrutal.dev') }}"
+        description: AI PR Reviewer & Git Automation
+        container: ai-git-bot
 {% endif %}
 
 - Media & Knowledge:
@@ -99,6 +106,13 @@
         href: "{{ agentzero_site_url | default('https://agentzero.mini.debrutal.dev') }}"
         description: Open Source AI Agent Framework
         container: agent-zero
+{% if ollama_enabled | default(true) %}
+    - Ollama:
+        icon: ollama
+        href: "{{ ollama_site_url | default('https://ollama.mini.debrutal.dev') }}"
+        description: Local LLM Inference Engine (Mode 1)
+        container: ollama
+{% endif %}
 
 - Smart Home & Automation:
     - Home Assistant:

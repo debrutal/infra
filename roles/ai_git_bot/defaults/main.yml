@@ -1,0 +1,51 @@
+---
+ai_git_bot_enabled: true
+ai_git_bot_dir: "/opt/ai-git-bot"
+ai_git_bot_data_dir: "{{ ai_git_bot_dir }}/data"
+ai_git_bot_db_dir: "{{ ai_git_bot_dir }}/db-data"
+ai_git_bot_image: "tmseidel/ai-git-bot"
+ai_git_bot_version: "latest"
+ai_git_bot_port: 8080
+ai_git_bot_traefik_network: "{{ traefik_network_name }}"
+ai_git_bot_traefik_certresolver: ""
+ai_git_bot_traefik_entrypoints: "websecure"
+ai_git_bot_domain: "ai-git-bot.mini.debrutal.dev"
+ai_git_bot_site_url: "https://{{ ai_git_bot_domain }}"
+
+# Database settings
+ai_git_bot_db_image: "postgres"
+ai_git_bot_db_version: "17-alpine"
+ai_git_bot_db_name: "aigitbot"
+ai_git_bot_db_user: "aigitbot"
+ai_git_bot_db_password: "{{ vault_ai_git_bot_db_password | default('aigitbot-secure-password-1234!') }}"
+
+# Security & encryption (AES-256 key for encrypted API tokens at rest)
+ai_git_bot_encryption_key: "{{ vault_ai_git_bot_encryption_key | default('a-secure-32-char-key-for-aes-256!') }}"
+ai_git_bot_login_method: "native"
+
+# AI Inference Modes
+# Mode 1: Local on Minisforum device (Ollama with small model)
+# Mode 2: Remote device (Mac with bigger model)
+ai_git_bot_mode: "mode1"
+
+# Mode 1 configuration (device inference)
+ai_git_bot_mode1_name: "Minisforum Local Ollama"
+ai_git_bot_mode1_provider: "ollama"
+ai_git_bot_mode1_api_url: "http://ollama:11434"
+ai_git_bot_mode1_model: "qwen2.5-coder:1.5b"
+
+# Mode 2 configuration (remote Mac device inference - prepared)
+ai_git_bot_mode2_name: "Mac Remote Ollama"
+ai_git_bot_mode2_provider: "ollama"
+ai_git_bot_mode2_api_url: "{{ vault_ai_git_bot_mode2_api_url | default('http://192.168.1.10:11434') }}"
+ai_git_bot_mode2_model: "qwen2.5-coder:14b"
+
+# Gitea integration settings
+ai_git_bot_gitea_name: "Local Gitea"
+ai_git_bot_gitea_url: "{{ gitea_site_url }}"
+ai_git_bot_username: "ai_bot"
+ai_git_bot_email: "ai-bot@mini.debrutal.dev"
+ai_git_bot_password: "{{ vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!')) }}"
+
+# Force restart flag
+ai_git_bot_force_restart: false
