@@ -26,3 +26,6 @@ bookorbit_site_url: "https://bookorbit.mini.debrutal.dev"  # noqa: var-naming[no
 agentzero_site_url: "https://agentzero.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
 pinchflat_site_url: "https://pinchflat.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
 ebook2audiobook_site_url: "https://ebook2audiobook.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+forgejo_site_url: "https://forgejo.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+forgejo_mcp_site_url: "https://forgejo-mcp.mini.debrutal.dev"  # noqa: var-naming[no-role-prefix]
+

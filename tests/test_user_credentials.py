@@ -361,6 +361,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             "Prometheus",
             "Gitea",
             "Forgejo",
+            "Forgejo MCP",
             "BookOrbit",
             "Pinchflat",
             "eBook2Audiobook",
