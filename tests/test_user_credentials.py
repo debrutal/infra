@@ -122,6 +122,9 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("section: oauth2_client", fj_tasks_content)
         self.assertIn("option: ACCOUNT_LINKING", fj_tasks_content)
         self.assertIn("option: ENABLE_AUTO_REGISTRATION", fj_tasks_content)
+        self.assertIn("section: webhook", fj_tasks_content)
+        self.assertIn("option: ALLOWED_HOST_LIST", fj_tasks_content)
+        self.assertIn("forgejo_webhook_allowed_host_list", defaults_content)
 
     def test_espocrm_defaults(self):
         """Verify EspoCRM default admin configuration."""

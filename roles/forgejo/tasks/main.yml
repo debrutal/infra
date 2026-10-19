@@ -113,12 +113,12 @@
     path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
   register: forgejo_app_ini_stat
 
-- name: Remove deprecated ALLOWED_HOST_LIST from [webhook] in Forgejo app.ini
+- name: Configure ALLOWED_HOST_LIST in [webhook] in Forgejo app.ini
   community.general.ini_file:
     path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
     section: webhook
     option: ALLOWED_HOST_LIST
-    state: absent
+    value: "{{ forgejo_webhook_allowed_host_list | default('external,loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8') }}"
     mode: '0644'
   when: forgejo_app_ini_stat.stat.exists | default(false)
   notify: Restart Forgejo
