@@ -10,7 +10,7 @@ gitea_ssh_port: 2222
 gitea_admin_user: "{{ vault_gitea_admin_user | default(default_admin_username | default('debrutal')) }}"
 gitea_admin_password: "{{ vault_gitea_admin_password | default(default_admin_password | default('')) }}"
 gitea_admin_email: "{{ vault_gitea_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
-gitea_runner_enabled: true
+gitea_runner_enabled: false
 gitea_runner_count: 4
 gitea_runner_version: "latest"
 gitea_dind_version: "dind-rootless"

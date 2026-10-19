@@ -56,6 +56,72 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             vault_content = f.read()
         self.assertIn("vault_gitea_mcp_access_token:", vault_content)
 
+    def test_forgejo_defaults(self):
+        """Verify Forgejo default admin and runner configuration."""
+        forgejo_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "forgejo", "defaults", "main.yml")
+        with open(forgejo_defaults_path, "r") as f:
+            content = f.read()
+        self.assertIn("vault_forgejo_admin_user | default(default_admin_username", content)
+        self.assertIn("vault_forgejo_admin_email | default(default_admin_email", content)
+        self.assertIn('forgejo_version: "10"', content)
+        self.assertEqual(str(self.all_vars.get("forgejo_version")), "10")
+        self.assertEqual(self.all_vars.get("forgejo_domain"), "forgejo.mini.debrutal.dev")
+        self.assertEqual(self.all_vars.get("forgejo_ssh_port"), 2223)
+        self.assertEqual(self.all_vars.get("forgejo_runner_count"), 4)
+        self.assertEqual(self.all_vars.get("forgejo_runner_enabled"), True)
+        self.assertEqual(self.all_vars.get("forgejo_runner_mode"), "podman")
+        self.assertIn('forgejo_security_egress_mode: "lax"', content)
+        self.assertIn("forgejo_security_allowed_host_list:", content)
+
+    def test_forgejo_mcp_credentials(self):
+        """Verify Forgejo MCP server credentials and default variables."""
+        forgejo_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "forgejo", "defaults", "main.yml")
+        with open(forgejo_defaults_path, "r") as f:
+            content = f.read()
+        self.assertIn("forgejo_mcp_enabled: true", content)
+        self.assertIn('forgejo_mcp_version: "2.30.2"', content)
+        self.assertIn("codeberg.org/goern/forgejo-mcp/releases", content)
+        self.assertIn("vault_forgejo_mcp_access_token", content)
+        self.assertEqual(self.all_vars.get("forgejo_mcp_enabled"), True)
+        self.assertEqual(str(self.all_vars.get("forgejo_mcp_version")), "2.30.2")
+        self.assertEqual(self.all_vars.get("forgejo_mcp_domain"), "forgejo-mcp.mini.debrutal.dev")
+        self.assertIn("vault_forgejo_mcp_access_token", str(self.all_vars.get("forgejo_mcp_access_token", "")))
+        with open(os.path.join(WORKSPACE_DIR, "inventory", "group_vars", "all", "vault.yml"), "r") as f:
+            vault_content = f.read()
+        self.assertIn("vault_forgejo_mcp_access_token:", vault_content)
+
+    def test_forgejo_authentik_integration(self):
+        """Verify Forgejo Authentik OIDC integration configuration and tasks."""
+        forgejo_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "forgejo", "defaults", "main.yml")
+        with open(forgejo_defaults_path, "r") as f:
+            defaults_content = f.read()
+        self.assertIn("forgejo_authentik_enabled: true", defaults_content)
+        self.assertIn("forgejo_authentik_name: \"authentik\"", defaults_content)
+        self.assertIn("forgejo_authentik_domain:", defaults_content)
+        self.assertIn("forgejo_authentik_client_id:", defaults_content)
+        self.assertIn("forgejo_authentik_client_secret:", defaults_content)
+        self.assertIn("forgejo_oauth2_auto_registration: true", defaults_content)
+        self.assertIn("forgejo_oauth2_account_linking: \"auto\"", defaults_content)
+        self.assertEqual(self.all_vars.get("forgejo_authentik_enabled"), True)
+
+        # Verify Authentik role registers Forgejo provider and application
+        ak_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "authentik", "tasks", "main.yml")
+        with open(ak_tasks_path, "r") as f:
+            ak_tasks_content = f.read()
+        self.assertIn("forgejo_provider", ak_tasks_content)
+        self.assertIn("slug='forgejo'", ak_tasks_content)
+        self.assertIn("Forgejo OIDC Provider", ak_tasks_content)
+
+        # Verify Forgejo role tasks register Authentik OIDC provider and app.ini oauth2_client settings
+        forgejo_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "forgejo", "tasks", "main.yml")
+        with open(forgejo_tasks_path, "r") as f:
+            fj_tasks_content = f.read()
+        self.assertIn("Register Authentik OIDC authentication source in Forgejo", fj_tasks_content)
+        self.assertIn("forgejo admin auth add-oauth", fj_tasks_content)
+        self.assertIn("--auto-discover-url", fj_tasks_content)
+        self.assertIn("section: oauth2_client", fj_tasks_content)
+        self.assertIn("option: ACCOUNT_LINKING", fj_tasks_content)
+        self.assertIn("option: ENABLE_AUTO_REGISTRATION", fj_tasks_content)
 
     def test_espocrm_defaults(self):
         """Verify EspoCRM default admin configuration."""
@@ -129,6 +195,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("vault_authentik_admin_username | default(default_admin_username", content)
         self.assertIn("vault_authentik_admin_email | default(default_admin_email", content)
         self.assertIn("authentik_grafana_client_id", content)
+        self.assertIn("authentik_forgejo_client_id", content)
         self.assertIn("authentik_glitchtip_client_id", content)
 
     def test_lgtm_defaults(self):
@@ -214,8 +281,10 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertIn("sentry-postgres", sh_content)
         self.assertIn("lago-db", sh_content)
         self.assertIn("gitea.db", sh_content)
+        self.assertIn("forgejo-sqlite.db", sh_content)
         self.assertIn("restic backup", sh_content)
         self.assertIn('"--tag" "gitea"', sh_content)
+        self.assertIn('"--tag" "forgejo"', sh_content)
         self.assertIn('"--tag" "authentik"', sh_content)
         self.assertIn('"--tag" "bookorbit"', sh_content)
         self.assertIn('"--tag" "espocrm"', sh_content)
@@ -260,6 +329,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             restic_homepage_enabled=True,
             restic_agentzero_enabled=True,
             restic_gitea_enabled=True,
+            restic_forgejo_enabled=True,
             restic_keep_daily=7,
             restic_keep_weekly=4,
             restic_keep_monthly=6,
@@ -290,6 +360,7 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             "Grafana (LGTM)",
             "Prometheus",
             "Gitea",
+            "Forgejo",
             "BookOrbit",
             "Pinchflat",
             "eBook2Audiobook",
@@ -430,8 +501,25 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
             ollama_content = f.read()
         self.assertIn("ollama_enabled: true", ollama_content)
         self.assertIn("qwen2.5-coder:1.5b", ollama_content)
+        self.assertIn("qwen2.5-coder:14b", ollama_content)
+        self.assertIn("mistral-nemo:12b", ollama_content)
+        self.assertIn("phi4:14b", ollama_content)
+        self.assertIn("gemma2:9b", ollama_content)
         self.assertEqual(self.all_vars.get("ollama_enabled"), True)
         self.assertEqual(self.all_vars.get("ollama_default_model"), "qwen2.5-coder:1.5b")
+        self.assertEqual(self.all_vars.get("ollama_max_loaded_models"), 1)
+        self.assertIn("qwen2.5-coder:14b", self.all_vars.get("ollama_pull_models", []))
+        self.assertIn("mistral-nemo:12b", self.all_vars.get("ollama_pull_models", []))
+        self.assertIn("phi4:14b", self.all_vars.get("ollama_pull_models", []))
+        self.assertIn("gemma2:9b", self.all_vars.get("ollama_pull_models", []))
+
+        # Check docker-compose rendering for Ollama
+        import jinja2
+        env = jinja2.Environment()
+        with open(os.path.join(WORKSPACE_DIR, "roles", "ollama", "templates", "docker-compose.yml.j2"), "r") as f:
+            ollama_compose_tpl = f.read()
+        rendered_ollama_compose = env.from_string(ollama_compose_tpl).render(self.all_vars)
+        self.assertIn("OLLAMA_MAX_LOADED_MODELS=1", rendered_ollama_compose)
 
         # 2. AI-Git-Bot defaults & modes
         bot_defaults_path = os.path.join(WORKSPACE_DIR, "roles", "ai_git_bot", "defaults", "main.yml")
@@ -446,6 +534,20 @@ class TestUserCredentialsConfiguration(unittest.TestCase):
         self.assertEqual(self.all_vars.get("ai_git_bot_mode1_model"), "qwen2.5-coder:1.5b")
         self.assertEqual(self.all_vars.get("ai_git_bot_mode2_model"), "qwen2.5-coder:14b")
         self.assertEqual(self.all_vars.get("ai_git_bot_username"), "ai_bot")
+        self.assertEqual(self.all_vars.get("ai_git_bot_git_platform"), "forgejo")
+        self.assertEqual(self.all_vars.get("ai_git_bot_forgejo_name"), "Local Forgejo")
+        self.assertEqual(self.all_vars.get("ai_git_bot_forgejo_url"), "{{ forgejo_site_url }}")
+
+        # 3. AI-Git-Bot tasks validation for Forgejo integration
+        bot_tasks_path = os.path.join(WORKSPACE_DIR, "roles", "ai_git_bot", "tasks", "main.yml")
+        with open(bot_tasks_path, "r") as f:
+            bot_tasks = f.read()
+        self.assertIn("docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' forgejo", bot_tasks)
+        self.assertIn("forgejo admin user create", bot_tasks)
+        self.assertIn("forgejo admin user generate-access-token", bot_tasks)
+        self.assertIn("forgejo_token.txt", bot_tasks)
+        self.assertIn('"primary_git_platform":', bot_tasks)
+        self.assertIn('"forgejo":', bot_tasks)
 
 
 if __name__ == "__main__":

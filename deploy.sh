@@ -170,7 +170,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_interactive_cli() {
-  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "lgtm" "bookorbit" "agentzero" "pinchflat" "ebook2audiobook" "restic" "netbird" "ollama" "ai_git_bot" "all")
+  local tag_keys=("traefik" "gitea" "runner" "common" "podman" "docker" "lago" "invoiceninja" "espocrm" "uptime_kuma" "sentry" "authentik" "homepage" "lgtm" "bookorbit" "agentzero" "pinchflat" "ebook2audiobook" "restic" "netbird" "ollama" "ai_git_bot" "forgejo" "all")
   local tag_labels=(
     "traefik        - Traefik reverse proxy & ACME SSL"
     "gitea          - Gitea self-hosted Git service"
@@ -194,6 +194,7 @@ run_interactive_cli() {
     "netbird        - NetBird mesh VPN client & subnet routing"
     "ollama         - Ollama local LLM inference engine (Mode 1)"
     "ai_git_bot     - AI-Git-Bot automated PR code reviewer & gateway"
+    "forgejo        - Forgejo self-hosted Git & Forge service"
     "all            - Run full playbook (all roles)"
   )
 

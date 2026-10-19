@@ -1,0 +1,183 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:{{ forgejo_version }}
+    container_name: forgejo
+    restart: always
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__server__ROOT_URL={{ forgejo_site_url }}/
+      - FORGEJO__server__DOMAIN={{ forgejo_domain }}
+      - FORGEJO__server__SSH_DOMAIN={{ forgejo_domain }}
+      - FORGEJO__server__SSH_PORT={{ forgejo_ssh_port }}
+      - FORGEJO__server__HTTP_PORT=3000
+      - FORGEJO__service__DISABLE_REGISTRATION=false
+      - FORGEJO__actions__ENABLED=true
+      - FORGEJO__actions__DEFAULT_ACTIONS_URL={{ forgejo_actions_default_url | default('https://github.com') }}
+      - FORGEJO__packages__ENABLED=true
+      - FORGEJO__security__EGRESS_MODE={{ forgejo_security_egress_mode | default('lax') }}
+      - FORGEJO__security__ALLOWED_HOST_LIST={{ forgejo_security_allowed_host_list | default('loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8') }}
+{% if forgejo_otel_enabled | default(true) %}
+      - FORGEJO__opentelemetry__ENABLED=true
+      - FORGEJO__opentelemetry__EXPORTER=otlp
+      - FORGEJO__opentelemetry__ENDPOINT=otel-collector:4317
+      - FORGEJO__opentelemetry__PROTOCOL=grpc
+      - FORGEJO__opentelemetry__INSECURE=true
+      - FORGEJO__opentelemetry__SERVICE_NAME=forgejo
+{% endif %}
+    volumes:
+      - {{ forgejo_dir }}/data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "{{ forgejo_ssh_port }}:22"
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forgejo.rule=Host(`{{ forgejo_domain }}`)"
+      - "traefik.http.routers.forgejo.entrypoints={{ forgejo_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.forgejo.tls=true"
+{% if forgejo_traefik_certresolver is defined and forgejo_traefik_certresolver %}
+      - "traefik.http.routers.forgejo.tls.certresolver={{ forgejo_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.forgejo.loadbalancer.server.port=3000"
+      - "kuma.forgejo.http.name=Forgejo"
+      - "kuma.forgejo.http.url=http://forgejo:3000"
+      - "homepage.group=Development & CI"
+      - "homepage.name=Forgejo"
+      - "homepage.icon=forgejo"
+      - "homepage.href={{ forgejo_site_url }}"
+      - "homepage.description=Beyond coding. We forge. Self-Hosted Git & Forge"
+
+{% if forgejo_mcp_enabled | default(true) %}
+  forgejo-mcp:
+    image: {{ forgejo_mcp_image | default('alpine:3.20') }}
+    container_name: forgejo-mcp
+    restart: always
+    volumes:
+      - {{ forgejo_dir }}/bin/forgejo-mcp:/usr/local/bin/forgejo-mcp:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    entrypoint:
+      - /usr/local/bin/forgejo-mcp
+    command:
+      - "--transport"
+      - "http"
+      - "--url"
+      - "http://forgejo:3000"
+      - "--http-port"
+      - "{{ forgejo_mcp_port | default(8080) }}"
+{% if forgejo_mcp_access_token is defined and forgejo_mcp_access_token %}
+      - "--token"
+      - "{{ forgejo_mcp_access_token }}"
+{% endif %}
+    environment:
+      - FORGEJO_URL=http://forgejo:3000
+{% if forgejo_mcp_access_token is defined and forgejo_mcp_access_token %}
+      - FORGEJO_ACCESS_TOKEN={{ forgejo_mcp_access_token }}
+{% endif %}
+    depends_on:
+      - forgejo
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forgejo-mcp.rule=Host(`{{ forgejo_mcp_domain }}`)"
+      - "traefik.http.routers.forgejo-mcp.entrypoints={{ forgejo_traefik_entrypoints }}"
+{% if traefik_acme_enabled | default(true) %}
+      - "traefik.http.routers.forgejo-mcp.tls=true"
+{% if forgejo_traefik_certresolver is defined and forgejo_traefik_certresolver %}
+      - "traefik.http.routers.forgejo-mcp.tls.certresolver={{ forgejo_traefik_certresolver }}"
+{% endif %}
+{% endif %}
+      - "traefik.http.services.forgejo-mcp.loadbalancer.server.port={{ forgejo_mcp_port | default(8080) }}"
+      - "kuma.forgejo-mcp.http.name=Forgejo MCP"
+      - "kuma.forgejo-mcp.http.url=http://forgejo-mcp:8080/mcp"
+      - "homepage.group=Development & CI"
+      - "homepage.name=Forgejo MCP"
+      - "homepage.icon=forgejo"
+      - "homepage.href={{ forgejo_mcp_site_url }}"
+      - "homepage.description=Forgejo MCP Server"
+{% endif %}
+
+{% if forgejo_runner_enabled | default(true) %}
+{% for i in range(1, (forgejo_runner_count | default(4) | int) + 1) %}
+{% if (forgejo_runner_mode | default('podman')) == 'dind' %}
+  forgejo-runner-dind-{{ i }}:
+    image: docker:{{ forgejo_dind_version | default('dind-rootless') }}
+    container_name: forgejo-runner-dind-{{ i }}
+    privileged: true
+    init: true
+    restart: always
+    environment:
+      - DOCKER_TLS_CERTDIR=
+    volumes:
+      - {{ forgejo_dir }}/runner-{{ i }}-dind-data:/var/lib/docker
+    networks:
+      - default
+{% endif %}
+
+  forgejo-runner-{{ i }}:
+    image: code.forgejo.org/forgejo/runner:{{ forgejo_runner_version | default('6') }}
+    container_name: forgejo-runner-{{ i }}
+    user: "0:0"
+    restart: always
+    environment:
+      - FORGEJO_INSTANCE_URL={{ forgejo_site_url }}
+      - FORGEJO_RUNNER_REGISTRATION_TOKEN={{ forgejo_runner_registration_token | default('') }}
+      - FORGEJO_RUNNER_NAME=forgejo-runner-{{ i }}
+{% if (forgejo_runner_mode | default('podman')) == 'dind' %}
+      - DOCKER_HOST=tcp://forgejo-runner-dind-{{ i }}:2375
+      - DOCKER_API_VERSION={{ forgejo_docker_api_version | default('1.40') }}
+{% else %}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+{% endif %}
+    volumes:
+      - {{ forgejo_dir }}/runner-{{ i }}-data:/data
+{% if (forgejo_runner_mode | default('podman')) != 'dind' %}
+      - /var/run/docker.sock:/var/run/docker.sock
+{% endif %}
+    depends_on:
+      - forgejo
+{% if (forgejo_runner_mode | default('podman')) == 'dind' %}
+      - forgejo-runner-dind-{{ i }}
+{% endif %}
+    networks:
+      - default
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while ! nc -z -w 2 forgejo 3000; do
+          sleep 2
+        done
+        while [ -z "$$FORGEJO_RUNNER_REGISTRATION_TOKEN" ]; do
+          echo "Waiting for runner registration token..."
+          sleep 3
+        done
+        if [ ! -f /data/.runner ]; then
+          forgejo-runner register \
+            --instance "$$FORGEJO_INSTANCE_URL" \
+            --token "$$FORGEJO_RUNNER_REGISTRATION_TOKEN" \
+            --name "$$FORGEJO_RUNNER_NAME" \
+            --labels "docker:docker://node:20-bookworm,ubuntu-latest:docker://node:20-bookworm" \
+            --no-interactive
+        fi
+        if [ ! -f /data/.runner ]; then
+          echo "Failed to register runner, sleeping 60s before exit to prevent registration loop..."
+          sleep 60
+          exit 1
+        fi
+        exec forgejo-runner daemon
+{% endfor %}
+{% endif %}
+
+networks:
+  default:
+  traefik_net:
+    external: true
+    name: {{ forgejo_traefik_network }}

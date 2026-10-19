@@ -24,10 +24,12 @@
       tags: [uptime_kuma, monitoring, status]
     - role: sentry
       tags: [sentry, error_tracking]
-    - role: gitea
-      tags: [gitea, git, runner]
     - role: authentik
       tags: [authentik, sso, auth]
+    - role: gitea
+      tags: [gitea, git, runner]
+    - role: forgejo
+      tags: [forgejo, git, runner]
     - role: lgtm
       tags: [lgtm, monitoring, logging, tracing]
     - role: homepage
@@ -43,6 +45,6 @@
     - role: ollama
       tags: [ollama, ai, llm]
     - role: ai_git_bot
-      tags: [ai_git_bot, aigitbot, gitbot, ai, gitea]
+      tags: [ai_git_bot, aigitbot, gitbot, ai, gitea, forgejo]
     - role: restic
       tags: [restic, backup]

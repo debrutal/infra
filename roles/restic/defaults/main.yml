@@ -22,6 +22,7 @@ restic_packages:
 
 # Component toggles
 restic_gitea_enabled: true
+restic_forgejo_enabled: true
 restic_authentik_enabled: true
 restic_bookorbit_enabled: true
 restic_espocrm_enabled: true

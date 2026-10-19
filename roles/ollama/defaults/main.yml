@@ -17,10 +17,15 @@ ollama_authentik_enabled: false
 # Ollama runtime parameters
 ollama_keep_alive: "24h"
 ollama_num_parallel: 2
+ollama_max_loaded_models: 1
 ollama_default_model: "qwen2.5-coder:1.5b"
 ollama_pull_models:
   - "qwen2.5-coder:1.5b"
   - "qwen2.5-coder:7b"
+  - "qwen2.5-coder:14b"
+  - "mistral-nemo:12b"
+  - "phi4:14b"
+  - "gemma2:9b"
 
 # Force restart flag
 ollama_force_restart: false

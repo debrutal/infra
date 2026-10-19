@@ -164,6 +164,24 @@
     gitea_provider.save();
     Application.objects.get_or_create(slug='gitea', defaults={'name': 'Gitea', 'provider': gitea_provider});
 
+    forgejo_provider, _ = OAuth2Provider.objects.get_or_create(
+        name='Forgejo OIDC Provider',
+        defaults={
+            'client_id': '{{ authentik_forgejo_client_id }}',
+            'client_secret': '{{ authentik_forgejo_client_secret }}',
+            'client_type': ClientTypes.CONFIDENTIAL,
+            'authorization_flow': explicit_flow,
+        }
+    );
+    forgejo_provider.client_id = '{{ authentik_forgejo_client_id }}';
+    forgejo_provider.client_secret = '{{ authentik_forgejo_client_secret }}';
+    forgejo_provider.redirect_uris = [RedirectURI(matching_mode='regex', url='https://{{ forgejo_domain | default("forgejo.mini.debrutal.dev") }}/.*')];
+    forgejo_provider.property_mappings.set(scopes);
+    forgejo_provider.save();
+    forgejo_app, _ = Application.objects.get_or_create(slug='forgejo', defaults={'name': 'Forgejo', 'provider': forgejo_provider});
+    forgejo_app.provider = forgejo_provider;
+    forgejo_app.save();
+
     grafana_provider, _ = OAuth2Provider.objects.get_or_create(
         name='Grafana OIDC Provider',
         defaults={

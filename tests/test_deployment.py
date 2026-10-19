@@ -166,6 +166,35 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("MCP_MODE=http", res_compose.stdout)
         self.assertIn("GITEA_HOST=http://gitea:3000", res_compose.stdout)
 
+    def test_09b_forgejo_installation(self):
+        """Verify Forgejo containerized directory and docker-compose.yml configuration."""
+        res_dir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", "/opt/forgejo"], capture_output=True)
+        self.assertEqual(res_dir.returncode, 0, "/opt/forgejo directory missing")
+
+        res_compose = subprocess.run(["docker", "exec", CONTAINER_NAME, "cat", "/opt/forgejo/docker-compose.yml"], capture_output=True, text=True)
+        self.assertEqual(res_compose.returncode, 0, "/opt/forgejo/docker-compose.yml missing")
+        self.assertIn("traefik.enable=true", res_compose.stdout)
+        self.assertIn("forgejo.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("codeberg.org/forgejo/forgejo", res_compose.stdout)
+        self.assertIn("FORGEJO__actions__ENABLED=true", res_compose.stdout)
+        self.assertIn("2223:22", res_compose.stdout)
+
+        # Verify runner services and directories (4 runners)
+        runner_count = int(os.environ.get("FORGEJO_RUNNER_COUNT", "4"))
+        for i in range(1, runner_count + 1):
+            self.assertIn(f"forgejo-runner-{i}:", res_compose.stdout)
+            res_rdir = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-d", f"/opt/forgejo/runner-{i}-data"], capture_output=True)
+            self.assertEqual(res_rdir.returncode, 0, f"/opt/forgejo/runner-{i}-data directory missing")
+        self.assertIn("code.forgejo.org/forgejo/runner", res_compose.stdout)
+        self.assertIn("DOCKER_HOST=", res_compose.stdout)
+
+        # Verify forgejo-mcp service
+        self.assertIn("forgejo-mcp:", res_compose.stdout)
+        self.assertIn("forgejo-mcp.mini.debrutal.dev", res_compose.stdout)
+        self.assertIn("--transport", res_compose.stdout)
+        self.assertIn("http://forgejo:3000", res_compose.stdout)
+
+
 
     def test_10_homepage_installation(self):
         """Verify Homepage containerized directory and docker-compose.yml configuration."""
@@ -331,6 +360,7 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertIn("authentik-db", res_script.stdout)
         self.assertIn("bookorbit-db", res_script.stdout)
         self.assertIn("gitea.db", res_script.stdout)
+        self.assertIn("forgejo-sqlite.db", res_script.stdout)
         self.assertIn("restic backup", res_script.stdout)
 
         res_infra = subprocess.run(["docker", "exec", CONTAINER_NAME, "test", "-x", "/usr/local/bin/restic-infra"], capture_output=True)
@@ -387,6 +417,7 @@ class TestContainerDeployment(unittest.TestCase):
         self.assertEqual(res_cfg.returncode, 0, "/opt/ai-git-bot/modes_configuration.json missing")
         self.assertIn("mode1_device_local", res_cfg.stdout)
         self.assertIn("mode2_remote_mac", res_cfg.stdout)
+        self.assertIn("forgejo", res_cfg.stdout)
 
 
 if __name__ == "__main__":

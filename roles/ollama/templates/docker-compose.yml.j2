@@ -7,6 +7,9 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_KEEP_ALIVE={{ ollama_keep_alive | default('24h') }}
       - OLLAMA_NUM_PARALLEL={{ ollama_num_parallel | default(2) }}
+{% if ollama_max_loaded_models is defined and ollama_max_loaded_models %}
+      - OLLAMA_MAX_LOADED_MODELS={{ ollama_max_loaded_models }}
+{% endif %}
     volumes:
       - {{ ollama_data_dir }}:/root/.ollama
 {% if ollama_host_port is defined and ollama_host_port %}

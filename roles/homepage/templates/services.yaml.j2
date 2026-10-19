@@ -63,6 +63,20 @@
         container: prometheus
 
 - Development & CI:
+{% if forgejo_enabled | default(true) %}
+    - Forgejo:
+        icon: forgejo
+        href: "{{ forgejo_site_url | default('https://forgejo.mini.debrutal.dev') }}"
+        description: Beyond coding. We forge. Self-Hosted Git & Forge
+        container: forgejo
+{% if forgejo_mcp_enabled | default(true) %}
+    - Forgejo MCP:
+        icon: forgejo
+        href: "{{ forgejo_mcp_site_url | default('https://forgejo-mcp.mini.debrutal.dev') }}"
+        description: Forgejo Model Context Protocol Server
+        container: forgejo-mcp
+{% endif %}
+{% endif %}
     - Gitea:
         icon: gitea
         href: "{{ gitea_site_url | default('https://gitea.mini.debrutal.dev') }}"

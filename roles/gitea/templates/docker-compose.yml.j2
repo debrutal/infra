@@ -103,6 +103,7 @@ services:
     image: docker:{{ gitea_dind_version | default('dind-rootless') }}
     container_name: gitea-runner-dind-{{ i }}
     privileged: true
+    init: true
     restart: always
     environment:
       - DOCKER_TLS_CERTDIR=

@@ -17,6 +17,8 @@ authentik_admin_password: "{{ vault_authentik_admin_password | default(default_a
 # Integrated Apps OIDC / OAuth2 Defaults
 authentik_gitea_client_id: "gitea"
 authentik_gitea_client_secret: "{{ vault_gitea_authentik_secret | default('gitea-secret-key-32-chars-minimum!') }}"
+authentik_forgejo_client_id: "forgejo"
+authentik_forgejo_client_secret: "{{ vault_forgejo_authentik_secret | default('forgejo-secret-key-32-chars-minimum!') }}"
 authentik_grafana_client_id: "grafana"
 authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
 authentik_bookorbit_client_id: "bookorbit"

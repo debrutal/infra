@@ -137,6 +137,26 @@ dump_databases() {
     fi
   fi
 
+  # 7b. Forgejo SQLite atomic hot-backup
+  if [[ "{{ restic_forgejo_enabled | default(true) | string | lower }}" == "true" ]]; then
+    local forgejo_db="/opt/forgejo/data/gitea/gitea.db"
+    if [[ -f "${forgejo_db}" ]]; then
+      echo "[+] Performing atomic SQLite hot-backup for Forgejo database..."
+      if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "${forgejo_db}" ".backup '${DUMPS_DIR}/forgejo-sqlite.db'"
+        chmod 600 "${DUMPS_DIR}/forgejo-sqlite.db"
+        echo "[+] Forgejo SQLite dump complete ($(du -h "${DUMPS_DIR}/forgejo-sqlite.db" | cut -f1))"
+      elif is_container_running "forgejo"; then
+        container_exec forgejo sqlite3 /data/gitea/gitea.db ".backup '/data/forgejo.db.bak'"
+        mv /opt/forgejo/data/forgejo.db.bak "${DUMPS_DIR}/forgejo-sqlite.db"
+        chmod 600 "${DUMPS_DIR}/forgejo-sqlite.db"
+        echo "[+] Forgejo SQLite dump via container complete ($(du -h "${DUMPS_DIR}/forgejo-sqlite.db" | cut -f1))"
+      fi
+    else
+      echo "[!] Notice: Forgejo database ${forgejo_db} not found on disk, skipping."
+    fi
+  fi
+
   # 8. Uptime Kuma SQLite atomic hot-backup
   if [[ "{{ restic_uptime_kuma_enabled | default(true) | string | lower }}" == "true" ]]; then
     local kuma_mount=""
@@ -199,6 +219,11 @@ run_backup() {
   if [[ "{{ restic_gitea_enabled | default(true) | string | lower }}" == "true" && -d "/opt/gitea" ]]; then
     backup_paths+=("/opt/gitea")
     backup_tags+=("--tag" "gitea")
+  fi
+
+  if [[ "{{ restic_forgejo_enabled | default(true) | string | lower }}" == "true" && -d "/opt/forgejo" ]]; then
+    backup_paths+=("/opt/forgejo")
+    backup_tags+=("--tag" "forgejo")
   fi
 
   if [[ "{{ restic_authentik_enabled | default(true) | string | lower }}" == "true" && -d "/opt/authentik" ]]; then

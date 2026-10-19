@@ -162,7 +162,7 @@ gitea_traefik_entrypoints: "websecure"
 gitea_domain: "gitea.mini.debrutal.dev"
 gitea_site_url: "https://{{ gitea_domain }}"
 gitea_ssh_port: 2222
-gitea_runner_enabled: true
+gitea_runner_enabled: false
 gitea_runner_count: 4
 gitea_runner_version: "latest"
 gitea_dind_version: "dind-rootless"
@@ -175,6 +175,32 @@ gitea_mcp_site_url: "https://{{ gitea_mcp_domain }}"
 gitea_mcp_port: 8080
 gitea_mcp_access_token: "{{ vault_gitea_mcp_access_token | default('') }}"
 gitea_mcp_readonly: false
+
+# Forgejo configuration
+forgejo_dir: "/opt/forgejo"
+forgejo_version: "10"
+forgejo_traefik_network: "{{ traefik_network_name }}"
+forgejo_traefik_certresolver: ""
+forgejo_traefik_entrypoints: "websecure"
+forgejo_domain: "forgejo.mini.debrutal.dev"
+forgejo_site_url: "https://{{ forgejo_domain }}"
+forgejo_ssh_port: 2223
+forgejo_runner_enabled: true
+forgejo_runner_count: 4
+forgejo_runner_version: "6"
+forgejo_runner_mode: "podman"
+forgejo_dind_version: "dind-rootless"
+
+# Forgejo MCP configuration
+forgejo_mcp_enabled: true
+forgejo_mcp_version: "2.30.2"
+forgejo_mcp_image: "alpine:3.20"
+forgejo_mcp_domain: "forgejo-mcp.mini.debrutal.dev"
+forgejo_mcp_site_url: "https://{{ forgejo_mcp_domain }}"
+forgejo_mcp_port: 8080
+forgejo_mcp_access_token: "{{ vault_forgejo_mcp_access_token | default('') }}"
+forgejo_mcp_readonly: false
+forgejo_authentik_enabled: true
 
 
 # Authentik (SSO / Identity Provider) configuration
@@ -192,6 +218,8 @@ authentik_postgres_db: "authentik"
 authentik_admin_username: "{{ vault_authentik_admin_username | default(default_admin_username) }}"
 authentik_admin_email: "{{ vault_authentik_admin_email | default(default_admin_email) }}"
 authentik_admin_password: "{{ vault_authentik_admin_password | default(default_admin_password) }}"
+authentik_forgejo_client_id: "forgejo"
+authentik_forgejo_client_secret: "{{ vault_forgejo_authentik_secret | default('forgejo-secret-key-32-chars-minimum!') }}"
 authentik_grafana_client_id: "grafana"
 authentik_grafana_client_secret: "{{ vault_grafana_authentik_secret | default('grafana-secret-key-32-chars-minimum!') }}"
 authentik_bookorbit_client_id: "bookorbit"
@@ -289,6 +317,7 @@ restic_packages:
   - restic
   - sqlite3
 restic_gitea_enabled: true
+restic_forgejo_enabled: true
 restic_authentik_enabled: true
 restic_bookorbit_enabled: true
 restic_espocrm_enabled: true
@@ -319,10 +348,15 @@ ollama_domain: "ollama.mini.debrutal.dev"
 ollama_site_url: "https://{{ ollama_domain }}"
 ollama_keep_alive: "24h"
 ollama_num_parallel: 2
+ollama_max_loaded_models: 1
 ollama_default_model: "qwen2.5-coder:1.5b"
 ollama_pull_models:
   - "qwen2.5-coder:1.5b"
   - "qwen2.5-coder:7b"
+  - "qwen2.5-coder:14b"
+  - "mistral-nemo:12b"
+  - "phi4:14b"
+  - "gemma2:9b"
 
 # AI-Git-Bot configuration
 ai_git_bot_enabled: true
@@ -355,7 +389,13 @@ ai_git_bot_mode2_provider: "ollama"
 ai_git_bot_mode2_api_url: "{{ vault_ai_git_bot_mode2_api_url | default('http://192.168.1.10:11434') }}"
 ai_git_bot_mode2_model: "qwen2.5-coder:14b"
 
-# Gitea integration for AI-Git-Bot
+# Git integration for AI-Git-Bot (Forgejo & Gitea)
+ai_git_bot_git_platform: "forgejo"
 ai_git_bot_username: "ai_bot"
 ai_git_bot_email: "ai-bot@mini.debrutal.dev"
-ai_git_bot_password: "{{ vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!')) }}"
+ai_git_bot_password: "{{ vault_ai_git_bot_git_password | default(vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!'))) }}"
+ai_git_bot_forgejo_name: "Local Forgejo"
+ai_git_bot_forgejo_url: "{{ forgejo_site_url }}"
+ai_git_bot_gitea_name: "Local Gitea"
+ai_git_bot_gitea_url: "{{ gitea_site_url }}"
+

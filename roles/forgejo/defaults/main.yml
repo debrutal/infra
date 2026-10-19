@@ -1,0 +1,51 @@
+---
+forgejo_dir: "/opt/forgejo"
+forgejo_version: "10"
+forgejo_traefik_network: "{{ traefik_network_name }}"
+forgejo_traefik_certresolver: ""
+forgejo_traefik_entrypoints: "websecure"
+forgejo_domain: "forgejo.mini.debrutal.dev"
+forgejo_site_url: "https://{{ forgejo_domain }}"
+forgejo_ssh_port: 2223
+forgejo_admin_user: "{{ vault_forgejo_admin_user | default(default_admin_username | default('debrutal')) }}"
+forgejo_admin_password: "{{ vault_forgejo_admin_password | default(default_admin_password | default('')) }}"
+forgejo_admin_email: "{{ vault_forgejo_admin_email | default(default_admin_email | default('duennes@gmail.com')) }}"
+forgejo_runner_enabled: true
+forgejo_runner_count: 4
+forgejo_runner_version: "6"
+forgejo_runner_mode: "podman"
+forgejo_dind_version: "dind-rootless"
+# Load an AppArmor profile that lets rootlesskit create user namespaces.
+# Required on Ubuntu >= 24.10 (kernel.apparmor_restrict_unprivileged_userns=1).
+forgejo_dind_apparmor_profile_enabled: true
+forgejo_docker_api_version: "{{ docker_api_version | default('1.40') }}"
+# Forgejo Security & Egress configuration
+forgejo_security_egress_mode: "lax"
+forgejo_security_allowed_host_list: "loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+forgejo_actions_default_url: "https://github.com"
+
+# OpenTelemetry
+forgejo_otel_enabled: true
+
+# Forgejo MCP configuration
+forgejo_mcp_enabled: true
+forgejo_mcp_version: "2.30.2"
+forgejo_mcp_binary_url: >-
+  https://codeberg.org/goern/forgejo-mcp/releases/download/v{{ forgejo_mcp_version }}/forgejo-mcp_{{ forgejo_mcp_version }}_linux_amd64.tar.gz
+forgejo_mcp_image: "alpine:3.20"
+forgejo_mcp_domain: "forgejo-mcp.mini.debrutal.dev"
+forgejo_mcp_site_url: "https://{{ forgejo_mcp_domain }}"
+forgejo_mcp_port: 8080
+forgejo_mcp_access_token: "{{ vault_forgejo_mcp_access_token | default('') }}"
+forgejo_mcp_readonly: false
+
+# Authentik OIDC integration
+forgejo_authentik_enabled: true
+forgejo_authentik_name: "authentik"
+forgejo_authentik_domain: "{{ authentik_domain | default('authentik.mini.debrutal.dev') }}"
+forgejo_authentik_client_id: "{{ authentik_forgejo_client_id | default('forgejo') }}"
+forgejo_authentik_client_secret: "{{ authentik_forgejo_client_secret | default('forgejo-secret-key-32-chars-minimum!') }}"
+forgejo_oauth2_auto_registration: true
+forgejo_oauth2_account_linking: "auto"
+forgejo_oauth2_username: "nickname"
+forgejo_oauth2_email_confirm: false

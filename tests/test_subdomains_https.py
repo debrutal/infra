@@ -27,6 +27,8 @@ SUBDOMAINS = [
     "sentry.mini.debrutal.dev",
     "gitea.mini.debrutal.dev",
     "gitea-mcp.mini.debrutal.dev",
+    "forgejo.mini.debrutal.dev",
+    "forgejo-mcp.mini.debrutal.dev",
     "authentik.mini.debrutal.dev",
     "bookorbit.mini.debrutal.dev",
     "agentzero.mini.debrutal.dev",

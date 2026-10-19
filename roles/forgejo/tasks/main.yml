@@ -1,0 +1,336 @@
+---
+- name: Create Forgejo directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ forgejo_dir }}"
+    - "{{ forgejo_dir }}/data"
+    - "{{ forgejo_dir }}/bin"
+
+- name: Download forgejo-mcp release tarball
+  ansible.builtin.get_url:
+    url: "{{ forgejo_mcp_binary_url }}"
+    dest: "/tmp/forgejo-mcp_{{ forgejo_mcp_version }}_linux_amd64.tar.gz"
+    mode: '0644'
+  when:
+    - forgejo_mcp_enabled | default(true)
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+  tags: [forgejo, mcp]
+
+- name: Extract forgejo-mcp binary to Forgejo bin directory
+  ansible.builtin.unarchive:
+    src: "/tmp/forgejo-mcp_{{ forgejo_mcp_version }}_linux_amd64.tar.gz"
+    dest: "{{ forgejo_dir }}/bin"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+      - "forgejo-mcp_{{ forgejo_mcp_version }}_linux_amd64/forgejo-mcp"
+    mode: '0755'
+  when:
+    - forgejo_mcp_enabled | default(true)
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+  tags: [forgejo, mcp]
+
+- name: Install forgejo-mcp to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ forgejo_dir }}/bin/forgejo-mcp"
+    dest: "/usr/local/bin/forgejo-mcp"
+    remote_src: true
+    mode: '0755'
+  when:
+    - forgejo_mcp_enabled | default(true)
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+  tags: [forgejo, mcp]
+
+
+- name: Create Forgejo runner directories
+  ansible.builtin.file:
+    path: "{{ forgejo_dir }}/runner-{{ item }}-data"
+    state: directory
+    mode: '0755'
+  loop: "{{ range(1, (forgejo_runner_count | default(4) | int) + 1) | list }}"
+  when: forgejo_runner_enabled | default(true)
+  tags: [forgejo, runner]
+
+- name: Create Forgejo runner DinD directories
+  ansible.builtin.file:
+    path: "{{ forgejo_dir }}/runner-{{ item }}-dind-data"
+    state: directory
+    mode: '0755'
+  loop: "{{ range(1, (forgejo_runner_count | default(4) | int) + 1) | list }}"
+  when:
+    - forgejo_runner_enabled | default(true)
+    - (forgejo_runner_mode | default('podman')) == 'dind'
+  tags: [forgejo, runner]
+
+- name: Check whether AppArmor is enabled on the host
+  ansible.builtin.command: cat /sys/module/apparmor/parameters/enabled
+  register: forgejo_apparmor_enabled
+  changed_when: false
+  failed_when: false
+  when:
+    - forgejo_runner_enabled | default(true)
+    - (forgejo_runner_mode | default('podman')) == 'dind'
+    - forgejo_dind_apparmor_profile_enabled | default(true)
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+  tags: [forgejo, runner]
+
+- name: Install AppArmor profile for rootlesskit
+  ansible.builtin.copy:
+    dest: /etc/apparmor.d/usr.local.bin.rootlesskit
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      abi <abi/4.0>,
+      include <tunables/global>
+
+      # Ubuntu ships kernel.apparmor_restrict_unprivileged_userns=1, which denies
+      # unprivileged user namespace creation with additional namespace flags.
+      # docker:dind-rootless runs rootlesskit as uid 1000 without capabilities, so
+      # without this profile the daemon dies with:
+      #   [rootlesskit:parent] error: failed to start the child: fork/exec /proc/self/exe: operation not permitted
+      /usr/local/bin/rootlesskit flags=(unconfined) {
+        userns,
+
+        # Site-specific additions and overrides. See local/README for details.
+        include if exists <local/usr.local.bin.rootlesskit>
+      }
+  register: forgejo_apparmor_profile
+  when:
+    - (forgejo_runner_mode | default('podman')) == 'dind'
+    - forgejo_apparmor_enabled is not skipped
+    - forgejo_apparmor_enabled.stdout | default('') | trim == 'Y'
+  notify:
+    - Reload AppArmor
+    - Restart Forgejo
+  tags: [forgejo, runner]
+
+- name: Check whether Forgejo app.ini exists
+  ansible.builtin.stat:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+  register: forgejo_app_ini_stat
+
+- name: Remove deprecated ALLOWED_HOST_LIST from [webhook] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: webhook
+    option: ALLOWED_HOST_LIST
+    state: absent
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure EGRESS_MODE in [security] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: security
+    option: EGRESS_MODE
+    value: "{{ forgejo_security_egress_mode | default('lax') }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure ALLOWED_HOST_LIST in [security] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: security
+    option: ALLOWED_HOST_LIST
+    value: "{{ forgejo_security_allowed_host_list | default('loopback,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8') }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure ENABLE_AUTO_REGISTRATION in [oauth2_client] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: oauth2_client
+    option: ENABLE_AUTO_REGISTRATION
+    value: "{{ forgejo_oauth2_auto_registration | default(true) | string | lower }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure ACCOUNT_LINKING in [oauth2_client] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: oauth2_client
+    option: ACCOUNT_LINKING
+    value: "{{ forgejo_oauth2_account_linking | default('auto') }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure USERNAME in [oauth2_client] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: oauth2_client
+    option: USERNAME
+    value: "{{ forgejo_oauth2_username | default('nickname') }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+- name: Configure REGISTER_EMAIL_CONFIRM in [oauth2_client] in Forgejo app.ini
+  community.general.ini_file:
+    path: "{{ forgejo_dir }}/data/gitea/conf/app.ini"
+    section: oauth2_client
+    option: REGISTER_EMAIL_CONFIRM
+    value: "{{ forgejo_oauth2_email_confirm | default(false) | string | lower }}"
+    mode: '0644'
+  when: forgejo_app_ini_stat.stat.exists | default(false)
+  notify: Restart Forgejo
+
+
+- name: Deploy Forgejo docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ forgejo_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Forgejo
+
+- name: Start Forgejo container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ forgejo_dir }}"
+    state: present
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Wait for Forgejo service to be available
+  ansible.builtin.command: >
+    docker exec forgejo curl -s -f http://localhost:3000/api/v1/version
+  register: forgejo_wait_res
+  until: forgejo_wait_res.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Create Forgejo admin user if not existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin user create
+    --username {{ forgejo_admin_user }}
+    --password {{ forgejo_admin_password }}
+    --email {{ forgejo_admin_email }}
+    --admin
+    --must-change-password=false
+  register: forgejo_create_admin_res
+  failed_when: false
+  changed_when: "'successfully created' in forgejo_create_admin_res.stdout"
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Update Forgejo admin user password if already existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin user change-password
+    --username {{ forgejo_admin_user }}
+    --password {{ forgejo_admin_password }}
+  register: forgejo_change_pass_res
+  failed_when: false
+  changed_when: false
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - "'already exists' in forgejo_create_admin_res.stderr | default('') or 'already exists' in forgejo_create_admin_res.stdout | default('')"
+
+- name: Generate Forgejo runner registration token
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo actions generate-runner-token
+  register: forgejo_runner_token_cmd
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_runner_enabled | default(true)
+  tags: [forgejo, runner]
+
+- name: Set Forgejo runner registration token fact
+  ansible.builtin.set_fact:
+    forgejo_runner_registration_token: "{{ forgejo_runner_token_cmd.stdout | trim }}"
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_runner_token_cmd is defined
+    - forgejo_runner_token_cmd.stdout is defined
+    - forgejo_runner_token_cmd.rc | default(1) == 0
+  tags: [forgejo, runner]
+
+- name: Check whether Forgejo MCP token is set
+  ansible.builtin.set_fact:
+    forgejo_mcp_access_token: "{{ vault_forgejo_mcp_access_token | default('') }}"
+  when:
+    - forgejo_mcp_enabled | default(true)
+    - forgejo_mcp_access_token is not defined or (forgejo_mcp_access_token | length == 0)
+  tags: [forgejo, mcp]
+
+- name: Generate Forgejo MCP access token for admin user if empty
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin user generate-access-token
+    --username {{ forgejo_admin_user }}
+    --token-name "forgejo-mcp"
+    --scopes all
+    --raw
+  register: forgejo_mcp_token_cmd
+  failed_when: false
+  changed_when: true
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_mcp_enabled | default(true)
+    - forgejo_mcp_access_token is not defined or (forgejo_mcp_access_token | length == 0)
+  tags: [forgejo, mcp]
+
+- name: Set generated Forgejo MCP access token fact
+  ansible.builtin.set_fact:
+    forgejo_mcp_access_token: "{{ forgejo_mcp_token_cmd.stdout | trim }}"
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_mcp_enabled | default(true)
+    - forgejo_mcp_token_cmd is defined
+    - forgejo_mcp_token_cmd.stdout is defined
+    - (forgejo_mcp_token_cmd.stdout | trim) | length > 0
+  tags: [forgejo, mcp]
+
+- name: Re-deploy Forgejo docker-compose file with runner and MCP tokens
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ forgejo_dir }}/docker-compose.yml"
+    mode: '0644'
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - (forgejo_runner_registration_token is defined) or (forgejo_mcp_token_cmd is defined and (forgejo_mcp_token_cmd.stdout | default('') | trim) | length > 0)
+  tags: [forgejo, runner, mcp]
+
+- name: Start Forgejo runner and MCP containers via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ forgejo_dir }}"
+    state: present
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - (forgejo_runner_enabled | default(true)) or (forgejo_mcp_enabled | default(true))
+  tags: [forgejo, runner, mcp]
+
+- name: Check configured Forgejo authentication sources
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin auth list
+  register: forgejo_auth_list_cmd
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_authentik_enabled | default(true)
+  tags: [forgejo, authentik, sso]
+
+- name: Register Authentik OIDC authentication source in Forgejo
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin auth add-oauth
+    --name {{ forgejo_authentik_name | default('authentik') }}
+    --provider openidConnect
+    --key {{ forgejo_authentik_client_id }}
+    --secret {{ forgejo_authentik_client_secret }}
+    --auto-discover-url https://{{ forgejo_authentik_domain }}/application/o/forgejo/.well-known/openid-configuration
+  register: forgejo_authentik_auth_res
+  failed_when: false
+  changed_when: forgejo_authentik_auth_res.rc == 0
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - forgejo_authentik_enabled | default(true)
+    - (forgejo_authentik_name | default('authentik')) not in (forgejo_auth_list_cmd.stdout | default(''))
+  tags: [forgejo, authentik, sso]

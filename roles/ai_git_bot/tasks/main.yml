@@ -34,6 +34,70 @@
   failed_when: false
   when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
 
+- name: Check if Forgejo container is running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' forgejo
+  register: ai_git_bot_forgejo_status_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
+- name: Create Forgejo AI bot user if not existing
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin user create
+    --username {{ ai_git_bot_username }}
+    --password {{ ai_git_bot_password }}
+    --email {{ ai_git_bot_email }}
+    --admin
+    --must-change-password=false
+  register: ai_git_bot_forgejo_user_res
+  failed_when: false
+  changed_when: "'successfully created' in ai_git_bot_forgejo_user_res.stdout"
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_forgejo_status_res.rc | default(1) == 0 and ai_git_bot_forgejo_status_res.stdout | default('') | trim == 'true'
+
+- name: Check if Forgejo bot token file already exists
+  ansible.builtin.stat:
+    path: "{{ ai_git_bot_dir }}/forgejo_token.txt"
+  register: ai_git_bot_forgejo_token_file
+
+- name: Generate Forgejo access token for AI bot user
+  ansible.builtin.command: >
+    docker exec --user 1000:1000 forgejo forgejo admin user generate-access-token
+    --username {{ ai_git_bot_username }}
+    --token-name "ai-git-bot-{{ ansible_date_time.epoch | default('default') }}"
+    --scopes all
+    --raw
+  register: ai_git_bot_forgejo_token_cmd
+  failed_when: false
+  changed_when: true
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_forgejo_status_res.rc | default(1) == 0 and ai_git_bot_forgejo_status_res.stdout | default('') | trim == 'true'
+    - not (ai_git_bot_forgejo_token_file.stat.exists | default(false)) or (ai_git_bot_forgejo_token_file.stat.size | default(0)) == 0
+
+- name: Save Forgejo bot access token to local file
+  ansible.builtin.copy:
+    dest: "{{ ai_git_bot_dir }}/forgejo_token.txt"
+    content: "{{ ai_git_bot_forgejo_token_cmd.stdout | trim }}\n"
+    mode: '0600'
+    owner: root
+    group: root
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_forgejo_token_cmd is defined
+    - ai_git_bot_forgejo_token_cmd.stdout is defined
+    - (ai_git_bot_forgejo_token_cmd.stdout | trim) | length > 0
+
+- name: Check if Gitea container is running
+  ansible.builtin.command: >
+    docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' gitea
+  register: ai_git_bot_gitea_status_res
+  failed_when: false
+  changed_when: false
+  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+
 - name: Create Gitea AI bot user if not existing
   ansible.builtin.command: >
     docker exec --user 1000:1000 gitea gitea admin user create
@@ -44,7 +108,9 @@
   register: ai_git_bot_gitea_user_res
   failed_when: false
   changed_when: "'successfully created' in ai_git_bot_gitea_user_res.stdout"
-  when: ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+  when:
+    - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_gitea_status_res.rc | default(1) == 0 and ai_git_bot_gitea_status_res.stdout | default('') | trim == 'true'
 
 - name: Check if Gitea bot token file already exists
   ansible.builtin.stat:
@@ -63,6 +129,7 @@
   changed_when: true
   when:
     - ansible_connection != 'docker' and (ansible_facts['virtualization_type'] | default('')) != 'docker'
+    - ai_git_bot_gitea_status_res.rc | default(1) == 0 and ai_git_bot_gitea_status_res.stdout | default('') | trim == 'true'
     - not (ai_git_bot_token_file.stat.exists | default(false)) or (ai_git_bot_token_file.stat.size | default(0)) == 0
 
 - name: Save Gitea bot access token to local file
@@ -83,6 +150,12 @@
     dest: "{{ ai_git_bot_dir }}/modes_configuration.json"
     content: |
       {
+        "primary_git_platform": "{{ ai_git_bot_git_platform | default('forgejo') }}",
+        "forgejo": {
+          "url": "{{ ai_git_bot_forgejo_url }}",
+          "username": "{{ ai_git_bot_username }}",
+          "email": "{{ ai_git_bot_email }}"
+        },
         "gitea": {
           "url": "{{ ai_git_bot_gitea_url }}",
           "username": "{{ ai_git_bot_username }}",

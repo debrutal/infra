@@ -40,12 +40,22 @@ ai_git_bot_mode2_provider: "ollama"
 ai_git_bot_mode2_api_url: "{{ vault_ai_git_bot_mode2_api_url | default('http://192.168.1.10:11434') }}"
 ai_git_bot_mode2_model: "qwen2.5-coder:14b"
 
-# Gitea integration settings
-ai_git_bot_gitea_name: "Local Gitea"
-ai_git_bot_gitea_url: "{{ gitea_site_url }}"
+# Git integration settings
+ai_git_bot_git_platform: "forgejo"
 ai_git_bot_username: "ai_bot"
 ai_git_bot_email: "ai-bot@mini.debrutal.dev"
-ai_git_bot_password: "{{ vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!')) }}"
+ai_git_bot_password: "{{ vault_ai_git_bot_git_password | default(vault_ai_git_bot_gitea_password | default(default_admin_password | default('ai-bot-secure-pass-123!'))) }}"
+
+# Forgejo integration settings
+ai_git_bot_forgejo_name: "Local Forgejo"
+ai_git_bot_forgejo_url: "{{ forgejo_site_url | default('https://forgejo.mini.debrutal.dev') }}"
+ai_git_bot_forgejo_admin: true
+ai_git_bot_forgejo_token: "{{ vault_ai_git_bot_forgejo_token | default('') }}"
+
+# Gitea integration settings (legacy / parallel)
+ai_git_bot_gitea_name: "Local Gitea"
+ai_git_bot_gitea_url: "{{ gitea_site_url | default('https://gitea.mini.debrutal.dev') }}"
 
 # Force restart flag
 ai_git_bot_force_restart: false
+
